@@ -72,7 +72,7 @@ type CacheConfig struct {
 	FilePath  string `yaml:"file_path"`
 	VaultURL  string `yaml:"vault_url"`
 	VaultPath string `yaml:"vault_path"`
-	TTL       int    `yaml:"ttl"` // seconds, default 3600
+	TTL       int    `yaml:"ttl"` // seconds, default 31536000 (1 year)
 }
 
 // Flags holds CLI flag values for layering on top of file/env config.
@@ -92,8 +92,8 @@ type Flags struct {
 func Load(flags Flags) (*Config, error) {
 	cfg := &Config{
 		Cache: CacheConfig{
-			Type: "none",
-			TTL:  3600,
+			Type: "file",
+			TTL:  31536000,
 		},
 	}
 
@@ -276,8 +276,8 @@ func (c *Config) SaveConfig() error {
 func LoadMinimal(flags Flags) (*Config, error) {
 	cfg := &Config{
 		Cache: CacheConfig{
-			Type: "none",
-			TTL:  3600,
+			Type: "file",
+			TTL:  31536000,
 		},
 	}
 

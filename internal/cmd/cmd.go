@@ -159,14 +159,9 @@ func refreshToken(cfg *config.Config, cache token.Cache) (string, error) {
 func newCache(cfg config.CacheConfig) token.Cache {
 	switch cfg.Type {
 	case "file":
-		path := cfg.FilePath
+		path := os.ExpandEnv(cfg.FilePath)
 		if path == "" {
-			if dir, err := os.UserCacheDir(); err == nil {
-				path = dir + "/express-send/tokens.json"
-			} else {
-				home, _ := os.UserHomeDir()
-				path = home + "/.cache/express-send/tokens.json"
-			}
+			path = ".express-bot-token-cache.json"
 		}
 		return &token.FileCache{Path: path}
 	case "vault":
