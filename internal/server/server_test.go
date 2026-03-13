@@ -691,3 +691,347 @@ func TestAlertmanager_CustomTemplate(t *testing.T) {
 		t.Errorf("unexpected message: %q", lastMsg)
 	}
 }
+
+// --- grafana ---
+
+func testGrafanaConfig(t *testing.T) *GrafanaConfig {
+	t.Helper()
+	tmpl, err := ParseGrafanaTemplate(DefaultGrafanaTemplate)
+	if err != nil {
+		t.Fatalf("parse default grafana template: %v", err)
+	}
+	return &GrafanaConfig{
+		DefaultChatID: "alert-chat-id",
+		ErrorStates:   []string{"alerting"},
+		Template:      tmpl,
+	}
+}
+
+func grafanaPayload(status, state, title string, alerts ...GrafanaAlertItem) string {
+	w := GrafanaWebhook{
+		Version:     "1",
+		GroupKey:    "test-group",
+		Status:     status,
+		State:      state,
+		Title:      title,
+		Receiver:   "express",
+		OrgID:      1,
+		GroupLabels: map[string]string{"alertname": "TestAlert"},
+		Alerts:     alerts,
+	}
+	b, _ := json.Marshal(w)
+	return string(b)
+}
+
+func TestGrafana_Firing(t *testing.T) {
+	grCfg := testGrafanaConfig(t)
+	srv := newTestServerWithOpts(
+		[]ResolvedKey{{Name: "t", Key: "k"}},
+		WithGrafana(grCfg),
+	)
+
+	body := grafanaPayload("firing", "alerting", "[FIRING:1] HighCPU", GrafanaAlertItem{
+		Status:       "firing",
+		Labels:       map[string]string{"alertname": "HighCPU", "grafana_folder": "Production"},
+		Annotations:  map[string]string{"summary": "CPU > 90%"},
+		DashboardURL: "http://grafana:3000/d/abc",
+		PanelURL:     "http://grafana:3000/d/abc?viewPanel=1",
+		SilenceURL:   "http://grafana:3000/alerting/silence/new",
+	})
+
+	w := doRequest(srv, "POST", "/api/v1/grafana", strings.NewReader(body), map[string]string{
+		"X-API-Key":    "k",
+		"Content-Type": "application/json",
+	})
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := parseResponse(t, w)
+	if !resp.OK {
+		t.Fatalf("expected ok=true")
+	}
+}
+
+func TestGrafana_Resolved(t *testing.T) {
+	grCfg := testGrafanaConfig(t)
+	srv := newTestServerWithOpts(
+		[]ResolvedKey{{Name: "t", Key: "k"}},
+		WithGrafana(grCfg),
+	)
+
+	body := grafanaPayload("resolved", "ok", "[RESOLVED] HighCPU", GrafanaAlertItem{
+		Status:      "resolved",
+		Labels:      map[string]string{"alertname": "HighCPU", "grafana_folder": "Production"},
+		Annotations: map[string]string{"summary": "CPU > 90%"},
+	})
+
+	w := doRequest(srv, "POST", "/api/v1/grafana", strings.NewReader(body), map[string]string{
+		"X-API-Key":    "k",
+		"Content-Type": "application/json",
+	})
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestGrafana_NoAlerts(t *testing.T) {
+	grCfg := testGrafanaConfig(t)
+	srv := newTestServerWithOpts(
+		[]ResolvedKey{{Name: "t", Key: "k"}},
+		WithGrafana(grCfg),
+	)
+
+	body := grafanaPayload("firing", "alerting", "test")
+	w := doRequest(srv, "POST", "/api/v1/grafana", strings.NewReader(body), map[string]string{
+		"X-API-Key":    "k",
+		"Content-Type": "application/json",
+	})
+	if w.Code != 400 {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestGrafana_InvalidJSON(t *testing.T) {
+	grCfg := testGrafanaConfig(t)
+	srv := newTestServerWithOpts(
+		[]ResolvedKey{{Name: "t", Key: "k"}},
+		WithGrafana(grCfg),
+	)
+
+	w := doRequest(srv, "POST", "/api/v1/grafana", strings.NewReader("{bad"), map[string]string{
+		"X-API-Key":    "k",
+		"Content-Type": "application/json",
+	})
+	if w.Code != 400 {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestGrafana_NotConfigured(t *testing.T) {
+	srv := newTestServerWithOpts([]ResolvedKey{{Name: "t", Key: "k"}})
+
+	body := grafanaPayload("firing", "alerting", "test", GrafanaAlertItem{
+		Status: "firing",
+		Labels: map[string]string{"alertname": "Test"},
+	})
+	w := doRequest(srv, "POST", "/api/v1/grafana", strings.NewReader(body), map[string]string{
+		"X-API-Key":    "k",
+		"Content-Type": "application/json",
+	})
+	if w.Code == 200 {
+		t.Fatalf("expected non-200 when grafana not configured, got 200")
+	}
+}
+
+func TestGrafana_StatusMapping(t *testing.T) {
+	grCfg := testGrafanaConfig(t)
+
+	tests := []struct {
+		name     string
+		webhook  GrafanaWebhook
+		expected string
+	}{
+		{
+			"resolved always ok",
+			GrafanaWebhook{Status: "resolved", State: "ok", Alerts: []GrafanaAlertItem{{}}},
+			"ok",
+		},
+		{
+			"alerting is error",
+			GrafanaWebhook{Status: "firing", State: "alerting", Alerts: []GrafanaAlertItem{{}}},
+			"error",
+		},
+		{
+			"no_data is ok",
+			GrafanaWebhook{Status: "firing", State: "no_data", Alerts: []GrafanaAlertItem{{}}},
+			"ok",
+		},
+		{
+			"pending is ok",
+			GrafanaWebhook{Status: "firing", State: "pending", Alerts: []GrafanaAlertItem{{}}},
+			"ok",
+		},
+	}
+
+	srv := &Server{grCfg: grCfg}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := srv.resolveGrafanaStatus(tt.webhook)
+			if got != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestGrafana_ChatIDQueryParam(t *testing.T) {
+	tmpl, _ := ParseGrafanaTemplate(`test`)
+	grCfg := &GrafanaConfig{
+		DefaultChatID: "default-chat",
+		ErrorStates:   []string{"alerting"},
+		Template:      tmpl,
+	}
+
+	var lastChatID string
+	cfg := Config{
+		Listen:   ":0",
+		BasePath: "/api/v1",
+		Keys:     []ResolvedKey{{Name: "t", Key: "k"}},
+	}
+	sendFn := func(ctx context.Context, p *SendPayload) (string, error) {
+		lastChatID = p.ChatID
+		return "id", nil
+	}
+	chatResolver := func(chatID string) (string, error) { return chatID, nil }
+	srv := New(cfg, sendFn, chatResolver, WithGrafana(grCfg))
+
+	body := grafanaPayload("firing", "alerting", "test", GrafanaAlertItem{
+		Status: "firing",
+		Labels: map[string]string{"alertname": "Test"},
+	})
+
+	// With query param
+	w := doRequest(srv, "POST", "/api/v1/grafana?chat_id=override-chat", strings.NewReader(body), map[string]string{
+		"X-API-Key":    "k",
+		"Content-Type": "application/json",
+	})
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if lastChatID != "override-chat" {
+		t.Errorf("expected chat_id=override-chat, got %q", lastChatID)
+	}
+
+	// Without query param — uses config default
+	w = doRequest(srv, "POST", "/api/v1/grafana", strings.NewReader(body), map[string]string{
+		"X-API-Key":    "k",
+		"Content-Type": "application/json",
+	})
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if lastChatID != "default-chat" {
+		t.Errorf("expected chat_id=default-chat, got %q", lastChatID)
+	}
+}
+
+func TestGrafana_NoChatID(t *testing.T) {
+	tmpl, _ := ParseGrafanaTemplate(`test`)
+	grCfg := &GrafanaConfig{
+		DefaultChatID: "",
+		ErrorStates:   []string{"alerting"},
+		Template:      tmpl,
+	}
+	srv := newTestServerWithOpts(
+		[]ResolvedKey{{Name: "t", Key: "k"}},
+		WithGrafana(grCfg),
+	)
+
+	body := grafanaPayload("firing", "alerting", "test", GrafanaAlertItem{
+		Status: "firing",
+		Labels: map[string]string{"alertname": "Test"},
+	})
+
+	w := doRequest(srv, "POST", "/api/v1/grafana", strings.NewReader(body), map[string]string{
+		"X-API-Key":    "k",
+		"Content-Type": "application/json",
+	})
+	if w.Code != 400 {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestGrafana_CustomTemplate(t *testing.T) {
+	tmpl, err := ParseGrafanaTemplate(`GRAFANA: {{ .Title }} is {{ .State }}`)
+	if err != nil {
+		t.Fatalf("parse template: %v", err)
+	}
+	grCfg := &GrafanaConfig{
+		DefaultChatID: "chat-1",
+		ErrorStates:   []string{"alerting"},
+		Template:      tmpl,
+	}
+
+	var lastMsg string
+	cfg := Config{
+		Listen:   ":0",
+		BasePath: "/api/v1",
+		Keys:     []ResolvedKey{{Name: "t", Key: "k"}},
+	}
+	sendFn := func(ctx context.Context, p *SendPayload) (string, error) {
+		lastMsg = p.Message
+		return "id", nil
+	}
+	chatResolver := func(chatID string) (string, error) { return chatID, nil }
+	srv := New(cfg, sendFn, chatResolver, WithGrafana(grCfg))
+
+	body := grafanaPayload("firing", "alerting", "[FIRING:1] DiskFull", GrafanaAlertItem{
+		Status: "firing",
+		Labels: map[string]string{"alertname": "DiskFull"},
+	})
+
+	w := doRequest(srv, "POST", "/api/v1/grafana", strings.NewReader(body), map[string]string{
+		"X-API-Key":    "k",
+		"Content-Type": "application/json",
+	})
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(lastMsg, "GRAFANA: [FIRING:1] DiskFull is alerting") {
+		t.Errorf("unexpected message: %q", lastMsg)
+	}
+}
+
+func TestGrafana_StatusSentToUpstream(t *testing.T) {
+	tmpl, _ := ParseGrafanaTemplate(`test`)
+	grCfg := &GrafanaConfig{
+		DefaultChatID: "chat-1",
+		ErrorStates:   []string{"alerting"},
+		Template:      tmpl,
+	}
+
+	var lastStatus string
+	cfg := Config{
+		Listen:   ":0",
+		BasePath: "/api/v1",
+		Keys:     []ResolvedKey{{Name: "t", Key: "k"}},
+	}
+	sendFn := func(ctx context.Context, p *SendPayload) (string, error) {
+		lastStatus = p.Status
+		return "id", nil
+	}
+	chatResolver := func(chatID string) (string, error) { return chatID, nil }
+	srv := New(cfg, sendFn, chatResolver, WithGrafana(grCfg))
+
+	// Firing with state=alerting → error
+	body := grafanaPayload("firing", "alerting", "test", GrafanaAlertItem{
+		Status: "firing",
+		Labels: map[string]string{"alertname": "Test"},
+	})
+	w := doRequest(srv, "POST", "/api/v1/grafana", strings.NewReader(body), map[string]string{
+		"X-API-Key":    "k",
+		"Content-Type": "application/json",
+	})
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if lastStatus != "error" {
+		t.Errorf("expected status=error, got %q", lastStatus)
+	}
+
+	// Resolved → ok
+	body = grafanaPayload("resolved", "ok", "test", GrafanaAlertItem{
+		Status: "resolved",
+		Labels: map[string]string{"alertname": "Test"},
+	})
+	w = doRequest(srv, "POST", "/api/v1/grafana", strings.NewReader(body), map[string]string{
+		"X-API-Key":    "k",
+		"Content-Type": "application/json",
+	})
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if lastStatus != "ok" {
+		t.Errorf("expected status=ok, got %q", lastStatus)
+	}
+}

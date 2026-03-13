@@ -169,6 +169,21 @@ Options:
 		srvOpts = append(srvOpts, server.WithAlertmanager(amCfg))
 	}
 
+	// Grafana endpoint
+	if gr := cfg.Server.Grafana; gr != nil {
+		grCfg, err := buildGrafanaConfig(gr, cfg.ConfigPath())
+		if err != nil {
+			return err
+		}
+		if grCfg.DefaultChatID == "" && len(cfg.Chats) == 1 {
+			for alias := range cfg.Chats {
+				grCfg.FallbackChatID = alias
+				vlog.V1("grafana: using single chat alias %q as fallback", alias)
+			}
+		}
+		srvOpts = append(srvOpts, server.WithGrafana(grCfg))
+	}
+
 	srv := server.New(srvCfg, sendFn, chatResolver, srvOpts...)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -274,6 +289,45 @@ func buildAlertmanagerConfig(am *config.AlertmanagerYAMLConfig, configPath strin
 		DefaultChatID:   am.DefaultChatID,
 		ErrorSeverities: severities,
 		Template:        tmpl,
+	}, nil
+}
+
+func buildGrafanaConfig(gr *config.GrafanaYAMLConfig, configPath string) (*server.GrafanaConfig, error) {
+	states := gr.ErrorStates
+	if len(states) == 0 {
+		states = []string{"alerting"}
+	}
+
+	var tmplStr string
+	switch {
+	case gr.TemplateFile != "":
+		path := gr.TemplateFile
+		if !filepath.IsAbs(path) && configPath != "" {
+			path = filepath.Join(filepath.Dir(configPath), path)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("reading grafana template %s: %w", path, err)
+		}
+		tmplStr = string(data)
+		vlog.V1("grafana: loaded template from %s", path)
+	case gr.Template != "":
+		tmplStr = gr.Template
+		vlog.V1("grafana: using inline template")
+	default:
+		tmplStr = server.DefaultGrafanaTemplate
+		vlog.V1("grafana: using default template")
+	}
+
+	tmpl, err := server.ParseGrafanaTemplate(tmplStr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &server.GrafanaConfig{
+		DefaultChatID: gr.DefaultChatID,
+		ErrorStates:   states,
+		Template:      tmpl,
 	}, nil
 }
 

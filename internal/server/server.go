@@ -32,6 +32,7 @@ type Server struct {
 	chats  ChatResolver
 	keyMap map[string]string // key -> name
 	amCfg  *AlertmanagerConfig
+	grCfg  *GrafanaConfig
 	srv    *http.Server
 }
 
@@ -48,6 +49,13 @@ type Option func(*Server)
 func WithAlertmanager(cfg *AlertmanagerConfig) Option {
 	return func(s *Server) {
 		s.amCfg = cfg
+	}
+}
+
+// WithGrafana enables the Grafana webhook endpoint.
+func WithGrafana(cfg *GrafanaConfig) Option {
+	return func(s *Server) {
+		s.grCfg = cfg
 	}
 }
 
@@ -85,6 +93,18 @@ func New(cfg Config, sendFn SendFunc, chatResolver ChatResolver, opts ...Option)
 			chatInfo = "from ?chat_id param"
 		}
 		vlog.V1("server: alertmanager endpoint enabled (chat: %s)", chatInfo)
+	}
+
+	if s.grCfg != nil {
+		mux.Handle(fmt.Sprintf("POST %s/grafana", base), s.authMiddleware(http.HandlerFunc(s.handleGrafana)))
+		chatInfo := s.grCfg.DefaultChatID
+		if chatInfo == "" {
+			chatInfo = s.grCfg.FallbackChatID
+		}
+		if chatInfo == "" {
+			chatInfo = "from ?chat_id param"
+		}
+		vlog.V1("server: grafana endpoint enabled (chat: %s)", chatInfo)
 	}
 
 	s.srv = &http.Server{

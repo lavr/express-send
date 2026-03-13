@@ -36,6 +36,7 @@ type ServerConfig struct {
 	APIKeys            []APIKeyConfig        `yaml:"api_keys,omitempty"`
 	AllowBotSecretAuth bool                  `yaml:"allow_bot_secret_auth,omitempty"`
 	Alertmanager       *AlertmanagerYAMLConfig `yaml:"alertmanager,omitempty"`
+	Grafana            *GrafanaYAMLConfig      `yaml:"grafana,omitempty"`
 }
 
 // AlertmanagerYAMLConfig holds YAML settings for the alertmanager webhook endpoint.
@@ -44,6 +45,14 @@ type AlertmanagerYAMLConfig struct {
 	ErrorSeverities []string `yaml:"error_severities,omitempty"`
 	Template        string   `yaml:"template,omitempty"`
 	TemplateFile    string   `yaml:"template_file,omitempty"`
+}
+
+// GrafanaYAMLConfig holds YAML settings for the Grafana webhook endpoint.
+type GrafanaYAMLConfig struct {
+	DefaultChatID string   `yaml:"default_chat_id,omitempty"`
+	ErrorStates   []string `yaml:"error_states,omitempty"`
+	Template      string   `yaml:"template,omitempty"`
+	TemplateFile  string   `yaml:"template_file,omitempty"`
 }
 
 // APIKeyConfig defines a single API key for server authentication.
