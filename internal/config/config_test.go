@@ -315,3 +315,240 @@ func TestLoad_DefaultCacheTTL(t *testing.T) {
 		t.Errorf("Cache.TTL = %d, want 3600 (default)", cfg.Cache.TTL)
 	}
 }
+
+// --- ServerConfig ---
+
+func TestLoad_ServerConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+bots:
+  main:
+    host: h
+    id: b
+    secret: s
+server:
+  listen: ":9090"
+  base_path: "/custom/api"
+  allow_bot_secret_auth: true
+  api_keys:
+    - name: monitoring
+      key: mon-key
+    - name: ci
+      key: ci-key
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(Flags{ConfigPath: cfgPath})
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if cfg.Server.Listen != ":9090" {
+		t.Errorf("Server.Listen = %q, want %q", cfg.Server.Listen, ":9090")
+	}
+	if cfg.Server.BasePath != "/custom/api" {
+		t.Errorf("Server.BasePath = %q, want %q", cfg.Server.BasePath, "/custom/api")
+	}
+	if !cfg.Server.AllowBotSecretAuth {
+		t.Error("Server.AllowBotSecretAuth = false, want true")
+	}
+	if len(cfg.Server.APIKeys) != 2 {
+		t.Fatalf("Server.APIKeys length = %d, want 2", len(cfg.Server.APIKeys))
+	}
+	if cfg.Server.APIKeys[0].Name != "monitoring" || cfg.Server.APIKeys[0].Key != "mon-key" {
+		t.Errorf("APIKeys[0] = %+v, want {monitoring, mon-key}", cfg.Server.APIKeys[0])
+	}
+	if cfg.Server.APIKeys[1].Name != "ci" || cfg.Server.APIKeys[1].Key != "ci-key" {
+		t.Errorf("APIKeys[1] = %+v, want {ci, ci-key}", cfg.Server.APIKeys[1])
+	}
+}
+
+func TestLoad_ServerConfig_Empty(t *testing.T) {
+	cfg, err := Load(Flags{Host: "h", BotID: "b", Secret: "s"})
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.Server.Listen != "" {
+		t.Errorf("Server.Listen = %q, want empty", cfg.Server.Listen)
+	}
+	if len(cfg.Server.APIKeys) != 0 {
+		t.Errorf("Server.APIKeys = %v, want empty", cfg.Server.APIKeys)
+	}
+}
+
+// --- ValidateFormat ---
+
+func TestValidateFormat(t *testing.T) {
+	tests := []struct {
+		format string
+		ok     bool
+	}{
+		{"text", true},
+		{"json", true},
+		{"xml", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		cfg := &Config{Format: tt.format}
+		err := cfg.ValidateFormat()
+		if tt.ok && err != nil {
+			t.Errorf("ValidateFormat(%q) = %v, want nil", tt.format, err)
+		}
+		if !tt.ok && err == nil {
+			t.Errorf("ValidateFormat(%q) = nil, want error", tt.format)
+		}
+	}
+}
+
+// --- ResolveChatID ---
+
+func TestResolveChatID_UUID(t *testing.T) {
+	cfg := &Config{ChatID: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"}
+	if err := cfg.ResolveChatID(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.ChatID != "a1b2c3d4-e5f6-7890-abcd-ef1234567890" {
+		t.Errorf("ChatID changed unexpectedly: %s", cfg.ChatID)
+	}
+}
+
+func TestResolveChatID_Empty(t *testing.T) {
+	cfg := &Config{}
+	if err := cfg.ResolveChatID(); err != nil {
+		t.Fatalf("unexpected error for empty ChatID: %v", err)
+	}
+}
+
+func TestResolveChatID_UnknownAlias_NoAliases(t *testing.T) {
+	cfg := &Config{ChatID: "unknown"}
+	err := cfg.ResolveChatID()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "no aliases configured") {
+		t.Errorf("expected 'no aliases configured', got: %v", err)
+	}
+}
+
+func TestResolveChatID_UnknownAlias_WithAliases(t *testing.T) {
+	cfg := &Config{
+		ChatID: "unknown",
+		Chats:  map[string]string{"deploy": "uuid-1", "alerts": "uuid-2"},
+	}
+	err := cfg.ResolveChatID()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "alerts") || !strings.Contains(err.Error(), "deploy") {
+		t.Errorf("expected available aliases in error, got: %v", err)
+	}
+}
+
+// --- RequireChatID multiple aliases ---
+
+func TestRequireChatID_MultipleAliases_NoChatID(t *testing.T) {
+	cfg := &Config{
+		Chats: map[string]string{"a": "uuid-1", "b": "uuid-2"},
+	}
+	err := cfg.RequireChatID()
+	if err == nil {
+		t.Fatal("expected error for multiple aliases without ChatID")
+	}
+	if !strings.Contains(err.Error(), "multiple chats") {
+		t.Errorf("expected 'multiple chats', got: %v", err)
+	}
+}
+
+// --- SaveConfig round-trip ---
+
+func TestSaveConfig_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	cfg := &Config{
+		Bots: map[string]BotConfig{
+			"prod": {Host: "prod.com", ID: "prod-id", Secret: "prod-s"},
+		},
+		Chats: map[string]string{"deploy": "uuid-d"},
+		Cache: CacheConfig{Type: "file", TTL: 1800},
+		Server: ServerConfig{
+			Listen:   ":9090",
+			BasePath: "/v2",
+			APIKeys:  []APIKeyConfig{{Name: "test", Key: "test-key"}},
+		},
+	}
+	cfg.configPath = cfgPath
+
+	if err := cfg.SaveConfig(); err != nil {
+		t.Fatalf("SaveConfig() error: %v", err)
+	}
+
+	loaded, err := Load(Flags{ConfigPath: cfgPath})
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if loaded.Host != "prod.com" {
+		t.Errorf("Host = %q, want %q", loaded.Host, "prod.com")
+	}
+	if loaded.Server.Listen != ":9090" {
+		t.Errorf("Server.Listen = %q, want %q", loaded.Server.Listen, ":9090")
+	}
+	if loaded.Server.BasePath != "/v2" {
+		t.Errorf("Server.BasePath = %q, want %q", loaded.Server.BasePath, "/v2")
+	}
+	if len(loaded.Server.APIKeys) != 1 || loaded.Server.APIKeys[0].Key != "test-key" {
+		t.Errorf("Server.APIKeys = %+v, want [{test test-key}]", loaded.Server.APIKeys)
+	}
+}
+
+// --- LoadMinimal ---
+
+func TestLoadMinimal_DefaultFormat(t *testing.T) {
+	cfg, err := LoadMinimal(Flags{})
+	if err != nil {
+		t.Fatalf("LoadMinimal() error: %v", err)
+	}
+	if cfg.Format != "text" {
+		t.Errorf("Format = %q, want %q", cfg.Format, "text")
+	}
+}
+
+func TestLoadMinimal_FormatOverride(t *testing.T) {
+	cfg, err := LoadMinimal(Flags{Format: "json"})
+	if err != nil {
+		t.Fatalf("LoadMinimal() error: %v", err)
+	}
+	if cfg.Format != "json" {
+		t.Errorf("Format = %q, want %q", cfg.Format, "json")
+	}
+}
+
+// --- Env overrides for cache ---
+
+func TestLoad_EnvCacheTTL(t *testing.T) {
+	t.Setenv("EXPRESS_CACHE_TTL", "600")
+
+	cfg, err := Load(Flags{Host: "h", BotID: "b", Secret: "s"})
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.Cache.TTL != 600 {
+		t.Errorf("Cache.TTL = %d, want 600", cfg.Cache.TTL)
+	}
+}
+
+func TestLoad_EnvCacheType(t *testing.T) {
+	t.Setenv("EXPRESS_CACHE_TYPE", "file")
+
+	cfg, err := Load(Flags{Host: "h", BotID: "b", Secret: "s"})
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.Cache.Type != "file" {
+		t.Errorf("Cache.Type = %q, want %q", cfg.Cache.Type, "file")
+	}
+}
