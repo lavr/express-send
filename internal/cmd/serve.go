@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/lavr/express-botx/internal/apm"
 	"github.com/lavr/express-botx/internal/auth"
 	"github.com/lavr/express-botx/internal/botapi"
 	"github.com/lavr/express-botx/internal/config"
@@ -152,8 +153,14 @@ Options:
 		return cfgCopy.ChatID, nil
 	}
 
-	// Alertmanager endpoint
+	// APM
+	provider := apm.New()
+	defer provider.Shutdown()
+
 	var srvOpts []server.Option
+	srvOpts = append(srvOpts, server.WithAPM(provider))
+
+	// Alertmanager endpoint
 	if am := cfg.Server.Alertmanager; am != nil {
 		amCfg, err := buildAlertmanagerConfig(am, cfg.ConfigPath())
 		if err != nil {

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lavr/express-botx/internal/apm"
 	vlog "github.com/lavr/express-botx/internal/log"
 )
 
@@ -31,6 +32,7 @@ type Server struct {
 	send   SendFunc
 	chats  ChatResolver
 	keyMap map[string]string // key -> name
+	apm    apm.Provider
 	amCfg  *AlertmanagerConfig
 	grCfg  *GrafanaConfig
 	srv    *http.Server
@@ -59,6 +61,13 @@ func WithGrafana(cfg *GrafanaConfig) Option {
 	}
 }
 
+// WithAPM sets the APM provider for request tracing.
+func WithAPM(p apm.Provider) Option {
+	return func(s *Server) {
+		s.apm = p
+	}
+}
+
 // New creates a Server with the given configuration.
 func New(cfg Config, sendFn SendFunc, chatResolver ChatResolver, opts ...Option) *Server {
 	s := &Server{
@@ -73,18 +82,24 @@ func New(cfg Config, sendFn SendFunc, chatResolver ChatResolver, opts ...Option)
 	for _, o := range opts {
 		o(s)
 	}
+	if s.apm == nil {
+		s.apm = apm.New()
+	}
 
 	mux := http.NewServeMux()
-
-	// healthz is always at the root, no auth
-	mux.HandleFunc("GET /healthz", s.handleHealthz)
-
-	// API routes under base path, with auth
 	base := strings.TrimRight(cfg.BasePath, "/")
-	mux.Handle(fmt.Sprintf("POST %s/send", base), s.authMiddleware(http.HandlerFunc(s.handleSend)))
+
+	// route registers an authenticated API endpoint with APM tracing.
+	route := func(method, path string, h http.HandlerFunc) {
+		pattern := fmt.Sprintf("%s %s%s", method, base, path)
+		mux.Handle(pattern, s.apm.WrapHandler(method+" "+path, s.authMiddleware(h)))
+	}
+
+	mux.HandleFunc("GET /healthz", s.handleHealthz)
+	route("POST", "/send", s.handleSend)
 
 	if s.amCfg != nil {
-		mux.Handle(fmt.Sprintf("POST %s/alertmanager", base), s.authMiddleware(http.HandlerFunc(s.handleAlertmanager)))
+		route("POST", "/alertmanager", s.handleAlertmanager)
 		chatInfo := s.amCfg.DefaultChatID
 		if chatInfo == "" {
 			chatInfo = s.amCfg.FallbackChatID
@@ -96,7 +111,7 @@ func New(cfg Config, sendFn SendFunc, chatResolver ChatResolver, opts ...Option)
 	}
 
 	if s.grCfg != nil {
-		mux.Handle(fmt.Sprintf("POST %s/grafana", base), s.authMiddleware(http.HandlerFunc(s.handleGrafana)))
+		route("POST", "/grafana", s.handleGrafana)
 		chatInfo := s.grCfg.DefaultChatID
 		if chatInfo == "" {
 			chatInfo = s.grCfg.FallbackChatID

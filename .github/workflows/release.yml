@@ -181,7 +181,9 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          build-args: VERSION=${{ github.ref_name }}
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            APM_TAG=newrelic
           tags: |
             lavr/express-botx:${{ github.ref_name }}
             lavr/express-botx:latest
