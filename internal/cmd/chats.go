@@ -8,8 +8,8 @@ import (
 	"io"
 	"sort"
 
-	"github.com/lavr/express-bot/internal/botapi"
-	"github.com/lavr/express-bot/internal/config"
+	"github.com/lavr/express-botx/internal/botapi"
+	"github.com/lavr/express-botx/internal/config"
 )
 
 func runChats(args []string, deps Deps) error {
@@ -41,7 +41,7 @@ func runChatsList(args []string, deps Deps) error {
 
 	globalFlags(fs, &flags)
 	fs.Usage = func() {
-		fmt.Fprintf(deps.Stderr, "Usage: express-bot chats list [options]\n\nList chats the bot is a member of.\n\nOptions:\n")
+		fmt.Fprintf(deps.Stderr, "Usage: express-botx chats list [options]\n\nList chats the bot is a member of.\n\nOptions:\n")
 		fs.PrintDefaults()
 	}
 
@@ -98,7 +98,7 @@ func runChatsInfo(args []string, deps Deps) error {
 	globalFlags(fs, &flags)
 	fs.StringVar(&flags.ChatID, "chat-id", "", "chat UUID or alias name")
 	fs.Usage = func() {
-		fmt.Fprintf(deps.Stderr, "Usage: express-bot chats info [options]\n\nShow detailed information about a chat.\n\nOptions:\n")
+		fmt.Fprintf(deps.Stderr, "Usage: express-botx chats info [options]\n\nShow detailed information about a chat.\n\nOptions:\n")
 		fs.PrintDefaults()
 	}
 
@@ -178,7 +178,7 @@ func runChatsAliasList(args []string, deps Deps) error {
 	fs.StringVar(&flags.ConfigPath, "config", "", "path to config file")
 	fs.StringVar(&flags.Format, "format", "", "output format: text or json (default: text)")
 	fs.Usage = func() {
-		fmt.Fprintf(deps.Stderr, "Usage: express-bot chats alias list [options]\n\nList configured chat aliases.\n\nOptions:\n")
+		fmt.Fprintf(deps.Stderr, "Usage: express-botx chats alias list [options]\n\nList configured chat aliases.\n\nOptions:\n")
 		fs.PrintDefaults()
 	}
 
@@ -211,7 +211,7 @@ func runChatsAliasList(args []string, deps Deps) error {
 	return printOutput(deps.Stdout, cfg.Format, func() {
 		if len(entries) == 0 {
 			fmt.Fprintln(deps.Stdout, "No chat aliases configured.")
-			fmt.Fprintf(deps.Stdout, "Add one with: express-bot chats alias set <name> <uuid>\n")
+			fmt.Fprintf(deps.Stdout, "Add one with: express-botx chats alias set <name> <uuid>\n")
 			return
 		}
 		fmt.Fprintf(deps.Stdout, "Chat aliases (%d):\n", len(entries))
@@ -228,7 +228,7 @@ func runChatsAliasSet(args []string, deps Deps) error {
 
 	fs.StringVar(&flags.ConfigPath, "config", "", "path to config file")
 	fs.Usage = func() {
-		fmt.Fprintf(deps.Stderr, "Usage: express-bot chats alias set <name> <uuid> [options]\n\nAdd or update a chat alias in the config file.\n\nOptions:\n")
+		fmt.Fprintf(deps.Stderr, "Usage: express-botx chats alias set <name> <uuid> [options]\n\nAdd or update a chat alias in the config file.\n\nOptions:\n")
 		fs.PrintDefaults()
 	}
 
@@ -275,7 +275,7 @@ func runChatsAliasRm(args []string, deps Deps) error {
 
 	fs.StringVar(&flags.ConfigPath, "config", "", "path to config file")
 	fs.Usage = func() {
-		fmt.Fprintf(deps.Stderr, "Usage: express-bot chats alias rm <name> [options]\n\nRemove a chat alias from the config file.\n\nOptions:\n")
+		fmt.Fprintf(deps.Stderr, "Usage: express-botx chats alias rm <name> [options]\n\nRemove a chat alias from the config file.\n\nOptions:\n")
 		fs.PrintDefaults()
 	}
 
@@ -323,25 +323,25 @@ func sortedKeys(m map[string]string) []string {
 }
 
 func printChatsAliasUsage(w io.Writer) {
-	fmt.Fprintf(w, `Usage: express-bot chats alias <command> [options]
+	fmt.Fprintf(w, `Usage: express-botx chats alias <command> [options]
 
 Commands:
   list    List configured chat aliases
   set     Add or update a chat alias
   rm      Remove a chat alias
 
-Run "express-bot chats alias <command> --help" for details on a specific command.
+Run "express-botx chats alias <command> --help" for details on a specific command.
 `)
 }
 
 func printChatsUsage(w io.Writer) {
-	fmt.Fprintf(w, `Usage: express-bot chats <command> [options]
+	fmt.Fprintf(w, `Usage: express-botx chats <command> [options]
 
 Commands:
   list    List chats the bot is a member of
   info    Show detailed information about a chat
   alias   Manage chat aliases (set, list, rm)
 
-Run "express-bot chats <command> --help" for details on a specific command.
+Run "express-botx chats <command> --help" for details on a specific command.
 `)
 }

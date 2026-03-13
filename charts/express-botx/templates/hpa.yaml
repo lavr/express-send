@@ -2,14 +2,14 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "express-bot.fullname" . }}
+  name: {{ include "express-botx.fullname" . }}
   labels:
-    {{- include "express-bot.labels" . | nindent 4 }}
+    {{- include "express-botx.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "express-bot.fullname" . }}
+    name: {{ include "express-botx.fullname" . }}
   minReplicas: {{ .Values.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.autoscaling.maxReplicas }}
   metrics:

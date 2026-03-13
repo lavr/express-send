@@ -9,11 +9,11 @@ import (
 	"sort"
 	"time"
 
-	"github.com/lavr/express-bot/internal/auth"
-	"github.com/lavr/express-bot/internal/botapi"
-	"github.com/lavr/express-bot/internal/config"
-	vlog "github.com/lavr/express-bot/internal/log"
-	"github.com/lavr/express-bot/internal/secret"
+	"github.com/lavr/express-botx/internal/auth"
+	"github.com/lavr/express-botx/internal/botapi"
+	"github.com/lavr/express-botx/internal/config"
+	vlog "github.com/lavr/express-botx/internal/log"
+	"github.com/lavr/express-botx/internal/secret"
 )
 
 func runBot(args []string, deps Deps) error {
@@ -51,7 +51,7 @@ func runBotPing(args []string, deps Deps) error {
 	globalFlags(fs, &flags)
 	fs.BoolVar(&quiet, "quiet", false, "only exit code, no output")
 	fs.Usage = func() {
-		fmt.Fprintf(deps.Stderr, "Usage: express-bot bot ping [options]\n\nCheck bot authentication and API connectivity.\n\nOptions:\n")
+		fmt.Fprintf(deps.Stderr, "Usage: express-botx bot ping [options]\n\nCheck bot authentication and API connectivity.\n\nOptions:\n")
 		fs.PrintDefaults()
 	}
 
@@ -120,7 +120,7 @@ func runBotInfo(args []string, deps Deps) error {
 	globalFlags(fs, &flags)
 	fs.BoolVar(&showToken, "show-token", false, "include token in output (dangerous!)")
 	fs.Usage = func() {
-		fmt.Fprintf(deps.Stderr, "Usage: express-bot bot info [options]\n\nShow bot configuration and auth status.\n\nOptions:\n")
+		fmt.Fprintf(deps.Stderr, "Usage: express-botx bot info [options]\n\nShow bot configuration and auth status.\n\nOptions:\n")
 		fs.PrintDefaults()
 	}
 
@@ -178,7 +178,7 @@ func runBotList(args []string, deps Deps) error {
 	fs.StringVar(&flags.ConfigPath, "config", "", "path to config file")
 	fs.StringVar(&flags.Format, "format", "", "output format: text or json (default: text)")
 	fs.Usage = func() {
-		fmt.Fprintf(deps.Stderr, "Usage: express-bot bot list [options]\n\nList bots configured in the config file.\n\nOptions:\n")
+		fmt.Fprintf(deps.Stderr, "Usage: express-botx bot list [options]\n\nList bots configured in the config file.\n\nOptions:\n")
 		fs.PrintDefaults()
 	}
 
@@ -218,7 +218,7 @@ func runBotList(args []string, deps Deps) error {
 	return printOutput(deps.Stdout, cfg.Format, func() {
 		if len(entries) == 0 {
 			fmt.Fprintln(deps.Stdout, "No bots configured.")
-			fmt.Fprintln(deps.Stdout, "Add one with: express-bot bot add --host HOST --bot-uuid UUID --secret SECRET")
+			fmt.Fprintln(deps.Stdout, "Add one with: express-botx bot add --host HOST --bot-uuid UUID --secret SECRET")
 			return
 		}
 		fmt.Fprintf(deps.Stdout, "Bots (%d):\n", len(entries))
@@ -240,7 +240,7 @@ func runBotAdd(args []string, deps Deps) error {
 	fs.StringVar(&botID, "bot-uuid", "", "bot UUID (required)")
 	fs.StringVar(&secretVal, "secret", "", "bot secret (required)")
 	fs.Usage = func() {
-		fmt.Fprintf(deps.Stderr, "Usage: express-bot bot add --host HOST --bot-uuid UUID --secret SECRET [options]\n\nAdd or update a bot in the config file.\nIf --name is omitted, it is auto-generated as bot1, bot2, etc.\n\nOptions:\n")
+		fmt.Fprintf(deps.Stderr, "Usage: express-botx bot add --host HOST --bot-uuid UUID --secret SECRET [options]\n\nAdd or update a bot in the config file.\nIf --name is omitted, it is auto-generated as bot1, bot2, etc.\n\nOptions:\n")
 		fs.PrintDefaults()
 	}
 
@@ -315,7 +315,7 @@ func runBotRm(args []string, deps Deps) error {
 
 	fs.StringVar(&flags.ConfigPath, "config", "", "path to config file")
 	fs.Usage = func() {
-		fmt.Fprintf(deps.Stderr, "Usage: express-bot bot rm <name> [options]\n\nRemove a bot from the config file.\n\nOptions:\n")
+		fmt.Fprintf(deps.Stderr, "Usage: express-botx bot rm <name> [options]\n\nRemove a bot from the config file.\n\nOptions:\n")
 		fs.PrintDefaults()
 	}
 
@@ -354,7 +354,7 @@ func runBotRm(args []string, deps Deps) error {
 }
 
 func printBotUsage(w io.Writer) {
-	fmt.Fprintf(w, `Usage: express-bot bot <command> [options]
+	fmt.Fprintf(w, `Usage: express-botx bot <command> [options]
 
 Commands:
   ping    Check bot authentication and API connectivity
@@ -363,6 +363,6 @@ Commands:
   add     Add or update a bot in the config file
   rm      Remove a bot from the config file
 
-Run "express-bot bot <command> --help" for details on a specific command.
+Run "express-botx bot <command> --help" for details on a specific command.
 `)
 }

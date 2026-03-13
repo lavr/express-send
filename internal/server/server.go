@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	vlog "github.com/lavr/express-bot/internal/log"
+	vlog "github.com/lavr/express-botx/internal/log"
 )
 
 // ResolvedKey is an API key with its secret resolved.
@@ -25,7 +25,7 @@ type Config struct {
 	BotSignature       string // expected HMAC-SHA256 signature for bot secret auth
 }
 
-// Server is the HTTP server for express-bot.
+// Server is the HTTP server for express-botx.
 type Server struct {
 	cfg    Config
 	send   SendFunc

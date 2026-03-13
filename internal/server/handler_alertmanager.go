@@ -8,7 +8,7 @@ import (
 	"text/template"
 	"time"
 
-	vlog "github.com/lavr/express-bot/internal/log"
+	vlog "github.com/lavr/express-botx/internal/log"
 )
 
 // AlertmanagerConfig holds settings for the alertmanager webhook endpoint.

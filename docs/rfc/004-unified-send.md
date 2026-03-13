@@ -8,8 +8,8 @@
 Сейчас отправка разделена на две субкоманды:
 
 ```bash
-express-bot send message "текст"
-express-bot send file --caption "подпись" ./report.pdf
+express-botx send message "текст"
+express-botx send file --caption "подпись" ./report.pdf
 ```
 
 Но BotX API (`POST /api/v4/botx/notifications/direct`) — это **один** эндпоинт, который принимает текст и файл в одном запросе. Разделение на две команды создаёт искусственное ограничение: нельзя отправить файл с текстом в одном вызове, нельзя использовать opts или metadata.
@@ -50,35 +50,35 @@ express-bot send file --caption "подпись" ./report.pdf
 
 ```bash
 # Текст (как раньше)
-express-bot send "Деплой завершён"
-express-bot send --from report.txt
-echo "OK" | express-bot send
+express-botx send "Деплой завершён"
+express-botx send --from report.txt
+echo "OK" | express-botx send
 
 # Файл
-express-bot send --file ./report.pdf
-express-bot send --file ./report.pdf --file-name custom-name.pdf
+express-botx send --file ./report.pdf
+express-botx send --file ./report.pdf --file-name custom-name.pdf
 
 # Файл из stdin
-cat image.png | express-bot send --file - --file-name image.png
+cat image.png | express-botx send --file - --file-name image.png
 
 # Текст + файл (одним запросом)
-express-bot send --file ./report.pdf "Отчёт за март"
-echo "Отчёт за март" | express-bot send --file ./report.pdf
+express-botx send --file ./report.pdf "Отчёт за март"
+echo "Отчёт за март" | express-botx send --file ./report.pdf
 
 # Статус
-express-bot send --status error "Сборка упала"
+express-botx send --status error "Сборка упала"
 
 # Silent (без push-уведомления получателю)
-express-bot send --silent "тихое сообщение"
+express-botx send --silent "тихое сообщение"
 
 # Stealth mode (сообщение видно только отправителю)
-express-bot send --stealth "видно только мне"
+express-botx send --stealth "видно только мне"
 
 # Force DND (доставить, даже если у получателя DND)
-express-bot send --force-dnd "срочно!"
+express-botx send --force-dnd "срочно!"
 
 # Metadata (произвольный JSON)
-express-bot send --metadata '{"ticket_id": 42}' "Тикет создан"
+express-botx send --metadata '{"ticket_id": 42}' "Тикет создан"
 ```
 
 ### Флаги
@@ -98,8 +98,8 @@ express-bot send --metadata '{"ticket_id": 42}' "Тикет создан"
 ### Источники текста (приоритет)
 
 1. `--from FILE` — из файла
-2. Позиционные аргументы — `express-bot send "Hello"`
-3. stdin — `echo "Hello" | express-bot send`
+2. Позиционные аргументы — `express-botx send "Hello"`
+3. stdin — `echo "Hello" | express-botx send`
 
 Текст не обязателен, если есть `--file` (файл без подписи).
 
@@ -205,15 +205,15 @@ func runSend(args []string, deps Deps) error
 
 ## Проверка
 
-1. `express-bot send "Hello"` — текст
-2. `express-bot send --from report.txt` — текст из файла
-3. `echo "OK" | express-bot send` — текст из stdin
-4. `express-bot send --file ./report.pdf` — файл без текста
-5. `express-bot send --file ./report.pdf "Отчёт"` — файл + текст
-6. `cat img.png | express-bot send --file - --file-name img.png` — файл из stdin
-7. `express-bot send --status error "Fail"` — статус error
-8. `express-bot send --silent "тихо"` — silent_response
-9. `express-bot send --stealth "скрыто"` — stealth_mode
-10. `express-bot send --metadata '{"id":1}' "test"` — metadata
-11. `express-bot send` (без текста и файла) — ошибка
-12. `express-bot send --file - ` (stdin + terminal + без --file-name) — ошибка
+1. `express-botx send "Hello"` — текст
+2. `express-botx send --from report.txt` — текст из файла
+3. `echo "OK" | express-botx send` — текст из stdin
+4. `express-botx send --file ./report.pdf` — файл без текста
+5. `express-botx send --file ./report.pdf "Отчёт"` — файл + текст
+6. `cat img.png | express-botx send --file - --file-name img.png` — файл из stdin
+7. `express-botx send --status error "Fail"` — статус error
+8. `express-botx send --silent "тихо"` — silent_response
+9. `express-botx send --stealth "скрыто"` — stealth_mode
+10. `express-botx send --metadata '{"id":1}' "test"` — metadata
+11. `express-botx send` (без текста и файла) — ошибка
+12. `express-botx send --file - ` (stdin + terminal + без --file-name) — ошибка

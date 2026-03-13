@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: lavr/express-bot
+  repository: lavr/express-botx
   tag: ""  # defaults to appVersion
   pullPolicy: IfNotPresent
 
@@ -9,7 +9,7 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# Config is mounted from a Secret into /etc/express-bot/config.yaml.
+# Config is mounted from a Secret into /etc/express-botx/config.yaml.
 # It contains secrets (bot secret, API keys), so it uses Secret, not ConfigMap.
 config:
   bots:
@@ -54,7 +54,7 @@ ingress:
   className: ""
   annotations: {}
   hosts:
-    - host: express-bot.example.com
+    - host: express-botx.example.com
       paths:
         - path: /
           pathType: Prefix

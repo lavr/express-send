@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "express-bot.fullname" . }}
+  name: {{ include "express-botx.fullname" . }}
   labels:
-    {{- include "express-bot.labels" . | nindent 4 }}
+    {{- include "express-botx.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "express-bot.selectorLabels" . | nindent 6 }}
+      {{- include "express-botx.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -19,7 +19,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "express-bot.selectorLabels" . | nindent 8 }}
+        {{- include "express-botx.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -28,7 +28,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "express-bot.serviceAccountName" . }}
+      serviceAccountName: {{ include "express-botx.serviceAccountName" . }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -37,8 +37,8 @@ spec:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["express-bot"]
-          args: ["serve", "--config", "/etc/express-bot/config.yaml"]
+          command: ["express-botx"]
+          args: ["serve", "--config", "/etc/express-botx/config.yaml"]
           ports:
             - name: http
               containerPort: 8080
@@ -62,10 +62,10 @@ spec:
             allowPrivilegeEscalation: false
           volumeMounts:
             - name: config
-              mountPath: /etc/express-bot
+              mountPath: /etc/express-botx
               readOnly: true
             - name: cache
-              mountPath: /tmp/express-bot
+              mountPath: /tmp/express-botx
           {{- with .Values.extraEnv }}
           env:
             {{- toYaml . | nindent 12 }}
@@ -73,7 +73,7 @@ spec:
       volumes:
         - name: config
           secret:
-            secretName: {{ include "express-bot.secretName" . }}
+            secretName: {{ include "express-botx.secretName" . }}
             items:
               - key: config.yaml
                 path: config.yaml

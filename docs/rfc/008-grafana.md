@@ -114,7 +114,7 @@ contact_points:
   - name: express
     type: webhook
     settings:
-      url: http://express-bot:8080/api/v1/grafana
+      url: http://express-botx:8080/api/v1/grafana
       authorization_scheme: Bearer
       authorization_credentials: <api-key>
 
@@ -122,7 +122,7 @@ contact_points:
   - name: express-ops
     type: webhook
     settings:
-      url: http://express-bot:8080/api/v1/grafana?chat_id=ops-alerts
+      url: http://express-botx:8080/api/v1/grafana?chat_id=ops-alerts
 ```
 
 Приоритет шаблона: `template_file` > `template` > встроенный.
@@ -200,7 +200,7 @@ type GrafanaAlertItem struct {
 В UI: Alerting → Contact points → New contact point:
 
 - **Type:** Webhook
-- **URL:** `http://express-bot:8080/api/v1/grafana`
+- **URL:** `http://express-botx:8080/api/v1/grafana`
 - **HTTP Method:** POST
 - **Authorization Header — Scheme:** Bearer
 - **Authorization Header — Credentials:** `<api-key>`
@@ -217,7 +217,7 @@ contactPoints:
       - uid: express-webhook
         type: webhook
         settings:
-          url: http://express-bot:8080/api/v1/grafana
+          url: http://express-botx:8080/api/v1/grafana
           httpMethod: POST
           authorization_scheme: Bearer
           authorization_credentials: $GRAFANA_EXPRESS_API_KEY
@@ -227,13 +227,13 @@ contactPoints:
 
 ```yaml
 services:
-  express-bot:
-    image: lavr/express-bot
+  express-botx:
+    image: lavr/express-botx
     command: serve --config /config/config.yaml
     ports:
       - "8080:8080"
     volumes:
-      - ./express-bot:/config
+      - ./express-botx:/config
 
   grafana:
     image: grafana/grafana:11.5

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	vlog "github.com/lavr/express-bot/internal/log"
+	vlog "github.com/lavr/express-botx/internal/log"
 )
 
 // BuildSignature creates HMAC-SHA256 signature for BotX API authentication.

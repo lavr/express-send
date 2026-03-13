@@ -19,8 +19,8 @@ chats:
 На практике в организации несколько eXpress-серверов (прод, тест, филиалы) или несколько ботов на одном сервере (деплой-бот, алерт-бот, отчёт-бот). Сейчас для каждого нужен отдельный конфиг-файл и `--config`:
 
 ```bash
-express-bot send message --config config-prod.yaml --chat-id deploy "OK"
-express-bot send message --config config-test.yaml --chat-id deploy "OK"
+express-botx send message --config config-prod.yaml --chat-id deploy "OK"
+express-botx send message --config config-test.yaml --chat-id deploy "OK"
 ```
 
 Это неудобно: много файлов, легко перепутать, нельзя переключаться одним флагом.
@@ -59,19 +59,19 @@ cache:
 
 ```bash
 # Один бот в конфиге — выбирается автоматически
-express-bot send message --chat-id deploy "Hello"
+express-botx send message --chat-id deploy "Hello"
 
 # Несколько ботов — указать --bot
-express-bot send message --bot prod --chat-id deploy "Деплой OK"
-express-bot send message --bot test --chat-id deploy "Тест OK"
-express-bot send message --bot alerts --chat-id alerts "CPU > 90%"
+express-botx send message --bot prod --chat-id deploy "Деплой OK"
+express-botx send message --bot test --chat-id deploy "Тест OK"
+express-botx send message --bot alerts --chat-id alerts "CPU > 90%"
 
 # bot info / bot ping с указанием бота
-express-bot bot info --bot prod
-express-bot bot ping --bot test
+express-botx bot info --bot prod
+express-botx bot ping --bot test
 
 # Все боты
-express-bot bot list
+express-botx bot list
 ```
 
 ### Правила резолва `--bot`
@@ -106,13 +106,13 @@ cacheKey := cfg.Host + ":" + cfg.Bot.ID
 
 ```bash
 # Добавить / обновить бота
-express-bot bot add prod --host express.company.ru --bot-id 054af49e-... --secret my-secret
+express-botx bot add prod --host express.company.ru --bot-id 054af49e-... --secret my-secret
 
 # Список ботов
-express-bot bot list
+express-botx bot list
 
 # Удалить бота
-express-bot bot rm test
+express-botx bot rm test
 ```
 
 `bot add` и `bot rm` используют `LoadMinimal()` + `SaveConfig()` — не требуют рабочей авторизации.
@@ -192,8 +192,8 @@ fs.StringVar(&flags.Bot, "bot", "", "bot name from config")
 **`bot list`** — список ботов из конфига (использует `LoadMinimal`, не требует авторизации):
 
 ```bash
-express-bot bot list
-express-bot bot list --format json
+express-botx bot list
+express-botx bot list --format json
 ```
 
 Текстовый вывод:
@@ -208,8 +208,8 @@ Bots (3):
 **`bot add`** — добавить/обновить бота в конфиге (использует `LoadMinimal` + `SaveConfig`):
 
 ```bash
-express-bot bot add prod --host express.company.ru --bot-id 054af49e-... --secret my-secret
-express-bot bot add test --host express-test.company.ru --bot-id 1a2b3c4d-... --secret env:TEST_SECRET
+express-botx bot add prod --host express.company.ru --bot-id 054af49e-... --secret my-secret
+express-botx bot add test --host express-test.company.ru --bot-id 1a2b3c4d-... --secret env:TEST_SECRET
 ```
 
 Флаги `--host`, `--bot-id`, `--secret` обязательны. Позиционный аргумент — имя бота.
@@ -217,7 +217,7 @@ express-bot bot add test --host express-test.company.ru --bot-id 1a2b3c4d-... --
 **`bot rm`** — удалить бота из конфига:
 
 ```bash
-express-bot bot rm test
+express-botx bot rm test
 ```
 
 Ошибка, если бот не найден.

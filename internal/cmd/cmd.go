@@ -10,11 +10,11 @@ import (
 
 	"strconv"
 
-	"github.com/lavr/express-bot/internal/auth"
-	"github.com/lavr/express-bot/internal/config"
-	vlog "github.com/lavr/express-bot/internal/log"
-	"github.com/lavr/express-bot/internal/secret"
-	"github.com/lavr/express-bot/internal/token"
+	"github.com/lavr/express-botx/internal/auth"
+	"github.com/lavr/express-botx/internal/config"
+	vlog "github.com/lavr/express-botx/internal/log"
+	"github.com/lavr/express-botx/internal/secret"
+	"github.com/lavr/express-botx/internal/token"
 )
 
 // Version is set at build time via -ldflags.
@@ -161,7 +161,7 @@ func newCache(cfg config.CacheConfig) token.Cache {
 	case "file":
 		path := os.ExpandEnv(cfg.FilePath)
 		if path == "" {
-			path = ".express-bot-token-cache.json"
+			path = ".express-botx-token-cache.json"
 		}
 		return &token.FileCache{Path: path}
 	case "vault":
@@ -176,7 +176,7 @@ func newCache(cfg config.CacheConfig) token.Cache {
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprintf(w, `Usage: express-bot <command> [options]
+	fmt.Fprintf(w, `Usage: express-botx <command> [options]
 
 Commands:
   send    Send a message and/or file to an eXpress chat
@@ -185,6 +185,6 @@ Commands:
   bot     Bot management (ping, info, list, add, rm)
   user    User operations (search)
 
-Run "express-bot <command> --help" for details on a specific command.
+Run "express-botx <command> --help" for details on a specific command.
 `)
 }

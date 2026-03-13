@@ -5,7 +5,7 @@
 
 ## Контекст
 
-`express-bot serve` — HTTP-сервер, который проксирует сообщения в eXpress через BotX API. Сейчас его можно запустить в Docker, но для деплоя в Kubernetes нужен Helm-чарт.
+`express-botx serve` — HTTP-сервер, который проксирует сообщения в eXpress через BotX API. Сейчас его можно запустить в Docker, но для деплоя в Kubernetes нужен Helm-чарт.
 
 Сервер:
 - Слушает на `:8080` (настраивается)
@@ -34,12 +34,12 @@ chats:
 
 ## Предложение
 
-Helm-чарт в директории `charts/express-bot/`. Публикация как OCI-артефакт в `ghcr.io`, индексация на ArtifactHub.
+Helm-чарт в директории `charts/express-botx/`. Публикация как OCI-артефакт в `ghcr.io`, индексация на ArtifactHub.
 
 ### Структура
 
 ```
-charts/express-bot/
+charts/express-botx/
 ├── Chart.yaml
 ├── values.yaml
 ├── templates/
@@ -59,14 +59,14 @@ artifacthub-repo.yml          # в корне репо
 
 ```yaml
 apiVersion: v2
-name: express-bot
+name: express-botx
 description: eXpress BotX API gateway
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
-home: https://github.com/lavr/express-bot
+home: https://github.com/lavr/express-botx
 sources:
-  - https://github.com/lavr/express-bot
+  - https://github.com/lavr/express-botx
 maintainers:
   - name: lavr
 ```
@@ -77,11 +77,11 @@ maintainers:
 replicaCount: 1
 
 image:
-  repository: lavr/express-bot
+  repository: lavr/express-botx
   tag: ""  # defaults to appVersion
   pullPolicy: IfNotPresent
 
-# Конфиг express-bot — монтируется из Secret в /etc/express-bot/config.yaml
+# Конфиг express-botx — монтируется из Secret в /etc/express-botx/config.yaml
 # Содержит секреты (bot secret, API keys), поэтому Secret, а не ConfigMap
 config:
   bots:
@@ -126,7 +126,7 @@ ingress:
   className: ""
   annotations: {}
   hosts:
-    - host: express-bot.example.com
+    - host: express-botx.example.com
       paths:
         - path: /
           pathType: Prefix
@@ -173,8 +173,8 @@ extraEnv: []
 apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ include "express-bot.fullname" . }}
-  labels: {{- include "express-bot.labels" . | nindent 4 }}
+  name: {{ include "express-botx.fullname" . }}
+  labels: {{- include "express-botx.labels" . | nindent 4 }}
 type: Opaque
 stringData:
   config.yaml: |
@@ -204,25 +204,25 @@ stringData:
 volumes:
   - name: config
     secret:
-      secretName: {{ .Values.existingSecret | default (include "express-bot.fullname" .) }}
+      secretName: {{ .Values.existingSecret | default (include "express-botx.fullname" .) }}
       items:
         - key: config.yaml
           path: config.yaml
   - name: cache
     emptyDir: {}
 containers:
-  - name: express-bot
-    command: ["express-bot"]
-    args: ["serve", "--config", "/etc/express-bot/config.yaml"]
+  - name: express-botx
+    command: ["express-botx"]
+    args: ["serve", "--config", "/etc/express-botx/config.yaml"]
     ports:
       - name: http
         containerPort: 8080
     volumeMounts:
       - name: config
-        mountPath: /etc/express-bot
+        mountPath: /etc/express-botx
         readOnly: true
       - name: cache
-        mountPath: /tmp/express-bot
+        mountPath: /tmp/express-botx
     livenessProbe:
       httpGet:
         path: /healthz
@@ -249,12 +249,12 @@ containers:
 Чарт публикуется как OCI-артефакт:
 
 ```
-oci://ghcr.io/lavr/charts/express-bot
+oci://ghcr.io/lavr/charts/express-botx
 ```
 
 Установка:
 ```bash
-helm install express-bot oci://ghcr.io/lavr/charts/express-bot --version 0.1.0
+helm install express-botx oci://ghcr.io/lavr/charts/express-botx --version 0.1.0
 ```
 
 ### GitHub Actions: `.github/workflows/chart.yml`
@@ -292,7 +292,7 @@ jobs:
         uses: azure/setup-helm@v4
 
       - name: Lint chart
-        run: helm lint charts/express-bot
+        run: helm lint charts/express-botx
 
   publish:
     if: startsWith(github.ref, 'refs/tags/chart-')
@@ -308,10 +308,10 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Package chart
-        run: helm package charts/express-bot
+        run: helm package charts/express-botx
 
       - name: Push to OCI registry
-        run: helm push express-bot-*.tgz oci://ghcr.io/lavr/charts
+        run: helm push express-botx-*.tgz oci://ghcr.io/lavr/charts
 ```
 
 ### ArtifactHub
@@ -327,31 +327,31 @@ owners:
 
 Регистрация:
 1. Зайти на https://artifacthub.io, авторизоваться через GitHub
-2. Add repository → Type: **OCI**, URL: `oci://ghcr.io/lavr/charts/express-bot`
+2. Add repository → Type: **OCI**, URL: `oci://ghcr.io/lavr/charts/express-botx`
 3. ArtifactHub автоматически подтягивает новые версии
 
 ## Использование
 
 ```bash
 # Минимальный деплой (один бот, один чат)
-helm install express-bot oci://ghcr.io/lavr/charts/express-bot \
+helm install express-botx oci://ghcr.io/lavr/charts/express-botx \
   --set config.bots.prod.host=express.example.com \
   --set config.bots.prod.id=9e944012-... \
   --set config.bots.prod.secret=aa484a61... \
   --set config.chats.deploy=7ee8aaa9-...
 
 # Несколько ботов и чатов из values-файла
-helm install express-bot oci://ghcr.io/lavr/charts/express-bot -f my-values.yaml
+helm install express-botx oci://ghcr.io/lavr/charts/express-botx -f my-values.yaml
 
 # С Ingress
-helm install express-bot oci://ghcr.io/lavr/charts/express-bot \
+helm install express-botx oci://ghcr.io/lavr/charts/express-botx \
   -f my-values.yaml \
   --set ingress.enabled=true \
   --set ingress.hosts[0].host=bot.example.com
 
 # С внешним Secret (External Secrets Operator и т.п.)
-helm install express-bot oci://ghcr.io/lavr/charts/express-bot \
-  --set existingSecret=my-express-bot-secret
+helm install express-botx oci://ghcr.io/lavr/charts/express-botx \
+  --set existingSecret=my-express-botx-secret
 ```
 
 ## Версионирование
@@ -371,25 +371,25 @@ helm install express-bot oci://ghcr.io/lavr/charts/express-bot \
 
 | Действие | Файл |
 |----------|------|
-| CREATE | `charts/express-bot/Chart.yaml` |
-| CREATE | `charts/express-bot/values.yaml` |
-| CREATE | `charts/express-bot/templates/_helpers.tpl` |
-| CREATE | `charts/express-bot/templates/deployment.yaml` |
-| CREATE | `charts/express-bot/templates/service.yaml` |
-| CREATE | `charts/express-bot/templates/secret.yaml` |
-| CREATE | `charts/express-bot/templates/hpa.yaml` |
-| CREATE | `charts/express-bot/templates/serviceaccount.yaml` |
-| CREATE | `charts/express-bot/templates/ingress.yaml` |
-| CREATE | `charts/express-bot/templates/NOTES.txt` |
-| CREATE | `charts/express-bot/.helmignore` |
+| CREATE | `charts/express-botx/Chart.yaml` |
+| CREATE | `charts/express-botx/values.yaml` |
+| CREATE | `charts/express-botx/templates/_helpers.tpl` |
+| CREATE | `charts/express-botx/templates/deployment.yaml` |
+| CREATE | `charts/express-botx/templates/service.yaml` |
+| CREATE | `charts/express-botx/templates/secret.yaml` |
+| CREATE | `charts/express-botx/templates/hpa.yaml` |
+| CREATE | `charts/express-botx/templates/serviceaccount.yaml` |
+| CREATE | `charts/express-botx/templates/ingress.yaml` |
+| CREATE | `charts/express-botx/templates/NOTES.txt` |
+| CREATE | `charts/express-botx/.helmignore` |
 | CREATE | `.github/workflows/chart.yml` |
 | CREATE | `artifacthub-repo.yml` |
 
 ## Проверка
 
-1. `helm lint charts/express-bot` — валидация
-2. `helm template express-bot charts/express-bot --set config.bots.a.host=x --set config.bots.a.id=y --set config.bots.a.secret=z --set config.bots.b.host=x2 --set config.bots.b.id=y2 --set config.bots.b.secret=z2 --set config.chats.deploy=uuid1 --set config.chats.alerts=uuid2` — рендеринг с несколькими ботами и чатами
+1. `helm lint charts/express-botx` — валидация
+2. `helm template express-botx charts/express-botx --set config.bots.a.host=x --set config.bots.a.id=y --set config.bots.a.secret=z --set config.bots.b.host=x2 --set config.bots.b.id=y2 --set config.bots.b.secret=z2 --set config.chats.deploy=uuid1 --set config.chats.alerts=uuid2` — рендеринг с несколькими ботами и чатами
 3. Проверить что Secret содержит корректный YAML со всеми ботами и чатами
 4. `git tag chart-0.1.0 && git push --tags` — триггерит CI, пуш в ghcr.io
-5. Проверить `helm pull oci://ghcr.io/lavr/charts/express-bot --version 0.1.0`
+5. Проверить `helm pull oci://ghcr.io/lavr/charts/express-botx --version 0.1.0`
 6. Деплой в тестовый кластер, `kubectl get pods`, проверить /healthz

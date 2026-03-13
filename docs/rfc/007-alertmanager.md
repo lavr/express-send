@@ -7,7 +7,7 @@
 
 Prometheus Alertmanager — стандартный инструмент для отправки уведомлений об инцидентах. Он поддерживает webhook-интеграцию: при срабатывании или разрешении алерта отправляет POST-запрос с JSON-описанием группы алертов.
 
-Сейчас для отправки алертов в eXpress через express-bot нужен промежуточный скрипт или сервис, который преобразует формат Alertmanager в вызов `/api/v1/send`. Это лишнее звено в цепочке.
+Сейчас для отправки алертов в eXpress через express-botx нужен промежуточный скрипт или сервис, который преобразует формат Alertmanager в вызов `/api/v1/send`. Это лишнее звено в цепочке.
 
 ## Предложение
 
@@ -74,7 +74,7 @@ server:
 
 1. **Query parameter** `?chat_id=` — указывается в URL при вызове эндпоинта
 2. **`default_chat_id`** — из конфига `server.alertmanager.default_chat_id`
-3. **Единственный чат** — если в секции `chats` ровно один алиас, он используется автоматически (аналогично поведению `express-bot send`)
+3. **Единственный чат** — если в секции `chats` ровно один алиас, он используется автоматически (аналогично поведению `express-botx send`)
 
 Если чат не определён ни одним из способов — возвращается 400 с подсказкой.
 
@@ -85,21 +85,21 @@ server:
 receivers:
   - name: express
     webhook_configs:
-      - url: http://express-bot:8080/api/v1/alertmanager
+      - url: http://express-botx:8080/api/v1/alertmanager
 
 # Разные чаты для разных route
 receivers:
   - name: express-ops
     webhook_configs:
-      - url: http://express-bot:8080/api/v1/alertmanager?chat_id=ops-alerts
+      - url: http://express-botx:8080/api/v1/alertmanager?chat_id=ops-alerts
   - name: express-dev
     webhook_configs:
-      - url: http://express-bot:8080/api/v1/alertmanager?chat_id=dev-alerts
+      - url: http://express-botx:8080/api/v1/alertmanager?chat_id=dev-alerts
 ```
 
 Приоритет шаблона: `template_file` > `template` > встроенный.
 
-Путь `template_file` — относительно директории конфига (если не абсолютный). Т.е. при конфиге `/etc/express-bot/config.yaml` путь `alertmanager.tmpl` резолвится в `/etc/express-bot/alertmanager.tmpl`.
+Путь `template_file` — относительно директории конфига (если не абсолютный). Т.е. при конфиге `/etc/express-botx/config.yaml` путь `alertmanager.tmpl` резолвится в `/etc/express-botx/alertmanager.tmpl`.
 
 ### Встроенный шаблон по умолчанию
 
@@ -168,7 +168,7 @@ route:
 receivers:
   - name: express
     webhook_configs:
-      - url: http://express-bot:8080/api/v1/alertmanager
+      - url: http://express-botx:8080/api/v1/alertmanager
         send_resolved: true
         http_config:
           bearer_token_file: /etc/alertmanager/express-api-key
@@ -178,13 +178,13 @@ receivers:
 
 ```yaml
 services:
-  express-bot:
-    image: lavr/express-bot
+  express-botx:
+    image: lavr/express-botx
     command: serve --config /config/config.yaml
     ports:
       - "8080:8080"
     volumes:
-      - ./express-bot:/config
+      - ./express-botx:/config
 
   alertmanager:
     image: prom/alertmanager

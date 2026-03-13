@@ -8,7 +8,7 @@ import (
 	"text/template"
 	"time"
 
-	vlog "github.com/lavr/express-bot/internal/log"
+	vlog "github.com/lavr/express-botx/internal/log"
 )
 
 // GrafanaConfig holds settings for the Grafana webhook endpoint.

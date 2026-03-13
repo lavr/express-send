@@ -1,4 +1,4 @@
-express-bot has been deployed.
+express-botx has been deployed.
 
 {{- if .Values.ingress.enabled }}
 Access the API at:
@@ -7,7 +7,7 @@ Access the API at:
 {{- end }}
 {{- else }}
 To access the API, run:
-  kubectl port-forward svc/{{ include "express-bot.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.targetPort }}
+  kubectl port-forward svc/{{ include "express-botx.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.targetPort }}
 
 Then send a request:
   curl http://localhost:{{ .Values.service.port }}/healthz

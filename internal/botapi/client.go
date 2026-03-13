@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
-	vlog "github.com/lavr/express-bot/internal/log"
+	vlog "github.com/lavr/express-botx/internal/log"
 )
 
 // Client is a BotX API client.

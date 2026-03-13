@@ -6,7 +6,7 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/lavr/express-bot/internal/cmd"
+	"github.com/lavr/express-botx/internal/cmd"
 )
 
 // version is set at build time via -ldflags.

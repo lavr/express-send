@@ -39,7 +39,7 @@ jobs:
         run: |
           EXT=""
           if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
-          go build -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" -o "express-bot${EXT}" .
+          go build -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" -o "express-botx${EXT}" .
 
       - name: Archive
         env:
@@ -47,16 +47,16 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
         run: |
           if [ "$GOOS" = "windows" ]; then
-            zip "express-bot-${GOOS}-${GOARCH}.zip" express-bot.exe
+            zip "express-botx-${GOOS}-${GOARCH}.zip" express-botx.exe
           else
-            tar czf "express-bot-${GOOS}-${GOARCH}.tar.gz" express-bot
+            tar czf "express-botx-${GOOS}-${GOARCH}.tar.gz" express-botx
           fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:
-          name: express-bot-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: express-bot-*.*
+          name: express-botx-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: express-botx-*.*
 
   publish:
     needs: build
@@ -72,7 +72,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: dist/express-bot-*
+          files: dist/express-botx-*
 
   homebrew:
     needs: publish
@@ -87,10 +87,10 @@ jobs:
       - name: Compute SHA256
         id: sha
         run: |
-          echo "darwin_arm64=$(sha256sum dist/express-bot-darwin-arm64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-          echo "darwin_amd64=$(sha256sum dist/express-bot-darwin-amd64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-          echo "linux_arm64=$(sha256sum dist/express-bot-linux-arm64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-          echo "linux_amd64=$(sha256sum dist/express-bot-linux-amd64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "darwin_arm64=$(sha256sum dist/express-botx-darwin-arm64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "darwin_amd64=$(sha256sum dist/express-botx-darwin-amd64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "linux_arm64=$(sha256sum dist/express-botx-linux-arm64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "linux_amd64=$(sha256sum dist/express-botx-linux-amd64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - name: Update Homebrew formula
         env:
@@ -99,62 +99,62 @@ jobs:
           VERSION="${GITHUB_REF_NAME}"
           TAG="${GITHUB_REF_NAME}"
 
-          cat > express-bot.rb << 'FORMULA'
+          cat > express-botx.rb << 'FORMULA'
           class ExpressBot < Formula
             desc "CLI and HTTP server for sending messages to eXpress"
-            homepage "https://github.com/lavr/express-bot"
+            homepage "https://github.com/lavr/express-botx"
             version "VERSION_PLACEHOLDER"
             license "MIT"
 
             on_macos do
               if Hardware::CPU.arm?
-                url "https://github.com/lavr/express-bot/releases/download/TAG_PLACEHOLDER/express-bot-darwin-arm64.tar.gz"
+                url "https://github.com/lavr/express-botx/releases/download/TAG_PLACEHOLDER/express-botx-darwin-arm64.tar.gz"
                 sha256 "SHA_DARWIN_ARM64"
               else
-                url "https://github.com/lavr/express-bot/releases/download/TAG_PLACEHOLDER/express-bot-darwin-amd64.tar.gz"
+                url "https://github.com/lavr/express-botx/releases/download/TAG_PLACEHOLDER/express-botx-darwin-amd64.tar.gz"
                 sha256 "SHA_DARWIN_AMD64"
               end
             end
 
             on_linux do
               if Hardware::CPU.arm?
-                url "https://github.com/lavr/express-bot/releases/download/TAG_PLACEHOLDER/express-bot-linux-arm64.tar.gz"
+                url "https://github.com/lavr/express-botx/releases/download/TAG_PLACEHOLDER/express-botx-linux-arm64.tar.gz"
                 sha256 "SHA_LINUX_ARM64"
               else
-                url "https://github.com/lavr/express-bot/releases/download/TAG_PLACEHOLDER/express-bot-linux-amd64.tar.gz"
+                url "https://github.com/lavr/express-botx/releases/download/TAG_PLACEHOLDER/express-botx-linux-amd64.tar.gz"
                 sha256 "SHA_LINUX_AMD64"
               end
             end
 
             def install
-              bin.install "express-bot"
+              bin.install "express-botx"
             end
 
             test do
-              assert_match "express-bot", shell_output("#{bin}/express-bot --help 2>&1", 1)
+              assert_match "express-botx", shell_output("#{bin}/express-botx --help 2>&1", 1)
             end
           end
           FORMULA
 
-          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/g" express-bot.rb
-          sed -i "s/TAG_PLACEHOLDER/${TAG}/g" express-bot.rb
-          sed -i "s/SHA_DARWIN_ARM64/${{ steps.sha.outputs.darwin_arm64 }}/g" express-bot.rb
-          sed -i "s/SHA_DARWIN_AMD64/${{ steps.sha.outputs.darwin_amd64 }}/g" express-bot.rb
-          sed -i "s/SHA_LINUX_ARM64/${{ steps.sha.outputs.linux_arm64 }}/g" express-bot.rb
-          sed -i "s/SHA_LINUX_AMD64/${{ steps.sha.outputs.linux_amd64 }}/g" express-bot.rb
+          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/g" express-botx.rb
+          sed -i "s/TAG_PLACEHOLDER/${TAG}/g" express-botx.rb
+          sed -i "s/SHA_DARWIN_ARM64/${{ steps.sha.outputs.darwin_arm64 }}/g" express-botx.rb
+          sed -i "s/SHA_DARWIN_AMD64/${{ steps.sha.outputs.darwin_amd64 }}/g" express-botx.rb
+          sed -i "s/SHA_LINUX_ARM64/${{ steps.sha.outputs.linux_arm64 }}/g" express-botx.rb
+          sed -i "s/SHA_LINUX_AMD64/${{ steps.sha.outputs.linux_amd64 }}/g" express-botx.rb
 
           # Push to homebrew-tap
-          gh api repos/lavr/homebrew-tap/contents/Formula/express-bot.rb \
+          gh api repos/lavr/homebrew-tap/contents/Formula/express-botx.rb \
             --method PUT \
-            --field message="express-bot ${TAG}" \
-            --field content="$(base64 -w0 express-bot.rb)" \
+            --field message="express-botx ${TAG}" \
+            --field content="$(base64 -w0 express-botx.rb)" \
             --field branch="master" \
-            --field sha="$(gh api repos/lavr/homebrew-tap/contents/Formula/express-bot.rb --jq '.sha' 2>/dev/null || echo '')" \
+            --field sha="$(gh api repos/lavr/homebrew-tap/contents/Formula/express-botx.rb --jq '.sha' 2>/dev/null || echo '')" \
             2>/dev/null || \
-          gh api repos/lavr/homebrew-tap/contents/Formula/express-bot.rb \
+          gh api repos/lavr/homebrew-tap/contents/Formula/express-botx.rb \
             --method PUT \
-            --field message="express-bot ${TAG}" \
-            --field content="$(base64 -w0 express-bot.rb)" \
+            --field message="express-botx ${TAG}" \
+            --field content="$(base64 -w0 express-botx.rb)" \
             --field branch="master"
 
   docker:
@@ -183,5 +183,5 @@ jobs:
           push: true
           build-args: VERSION=${{ github.ref_name }}
           tags: |
-            lavr/express-bot:${{ github.ref_name }}
-            lavr/express-bot:latest
+            lavr/express-botx:${{ github.ref_name }}
+            lavr/express-botx:latest

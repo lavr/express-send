@@ -5,7 +5,7 @@
 
 ## Контекст
 
-Сейчас express-bot не выводит отладочную информацию. При проблемах с подключением, аутентификацией или отправкой сообщений приходится угадывать причину по короткому сообщению об ошибке.
+Сейчас express-botx не выводит отладочную информацию. При проблемах с подключением, аутентификацией или отправкой сообщений приходится угадывать причину по короткому сообщению об ошибке.
 
 ## Предложение
 
@@ -35,7 +35,7 @@ error: sending: send failed: HTTP 403
 Ключевые шаги — что происходит и с какими параметрами:
 
 ```
-config: loaded from ./express-bot.yaml
+config: loaded from ./express-botx.yaml
 config: using bot "prod" (express.invitro.ru)
 auth: token loaded from cache (expires in 2847s)
 send: POST /api/v4/botx/notifications/direct -> 202 Accepted
@@ -45,7 +45,7 @@ Bot added: bot1 (express.invitro.ru, 9e944012-...)
 Для `serve`:
 
 ```
-config: loaded from ./express-bot.yaml
+config: loaded from ./express-botx.yaml
 config: using bot "prod" (express.invitro.ru)
 auth: token obtained (new)
 server: listening on :8080 (base_path: /api/v1)
@@ -59,7 +59,7 @@ server: POST /api/v1/send [key: ci] -> 502 (5012ms)
 HTTP-детали — URL, метод, заголовки (без секретов), статус, время:
 
 ```
-config: loaded from ./express-bot.yaml
+config: loaded from ./express-botx.yaml
 config: using bot "prod" (express.invitro.ru)
 auth: GET https://express.invitro.ru/api/v2/botx/bots/9e944012-.../token?signature=***
 auth: <- 200 OK (87ms)

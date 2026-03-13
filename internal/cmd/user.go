@@ -8,8 +8,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/lavr/express-bot/internal/botapi"
-	"github.com/lavr/express-bot/internal/config"
+	"github.com/lavr/express-botx/internal/botapi"
+	"github.com/lavr/express-botx/internal/config"
 )
 
 func runUser(args []string, deps Deps) error {
@@ -42,7 +42,7 @@ func runUserSearch(args []string, deps Deps) error {
 	fs.StringVar(&adLogin, "ad-login", "", "search by AD login (requires --ad-domain)")
 	fs.StringVar(&adDomain, "ad-domain", "", "AD domain (required with --ad-login)")
 	fs.Usage = func() {
-		fmt.Fprintf(deps.Stderr, "Usage: express-bot user search [options]\n\nSearch for a user by HUID, email, or AD login.\n\nExactly one of --huid, --email, or --ad-login is required.\n\nOptions:\n")
+		fmt.Fprintf(deps.Stderr, "Usage: express-botx user search [options]\n\nSearch for a user by HUID, email, or AD login.\n\nExactly one of --huid, --email, or --ad-login is required.\n\nOptions:\n")
 		fs.PrintDefaults()
 	}
 
@@ -126,11 +126,11 @@ func runUserSearch(args []string, deps Deps) error {
 }
 
 func printUserUsage(w io.Writer) {
-	fmt.Fprintf(w, `Usage: express-bot user <command> [options]
+	fmt.Fprintf(w, `Usage: express-botx user <command> [options]
 
 Commands:
   search    Search for a user by HUID, email, or AD login
 
-Run "express-bot user <command> --help" for details on a specific command.
+Run "express-botx user <command> --help" for details on a specific command.
 `)
 }

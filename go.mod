@@ -1,4 +1,4 @@
-module github.com/lavr/express-bot
+module github.com/lavr/express-botx
 
 go 1.25.5
 

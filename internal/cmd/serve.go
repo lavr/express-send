@@ -11,12 +11,12 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/lavr/express-bot/internal/auth"
-	"github.com/lavr/express-bot/internal/botapi"
-	"github.com/lavr/express-bot/internal/config"
-	vlog "github.com/lavr/express-bot/internal/log"
-	"github.com/lavr/express-bot/internal/secret"
-	"github.com/lavr/express-bot/internal/server"
+	"github.com/lavr/express-botx/internal/auth"
+	"github.com/lavr/express-botx/internal/botapi"
+	"github.com/lavr/express-botx/internal/config"
+	vlog "github.com/lavr/express-botx/internal/log"
+	"github.com/lavr/express-botx/internal/secret"
+	"github.com/lavr/express-botx/internal/server"
 )
 
 func runServe(args []string, deps Deps) error {
@@ -30,7 +30,7 @@ func runServe(args []string, deps Deps) error {
 	fs.StringVar(&listenFlag, "listen", "", "address to listen on (overrides config)")
 	fs.StringVar(&apiKeyFlag, "api-key", "", "API key for quick start (overrides config)")
 	fs.Usage = func() {
-		fmt.Fprintf(deps.Stderr, `Usage: express-bot serve [options]
+		fmt.Fprintf(deps.Stderr, `Usage: express-botx serve [options]
 
 Start an HTTP server for sending messages via API.
 

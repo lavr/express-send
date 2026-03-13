@@ -5,11 +5,11 @@
 
 ## Контекст
 
-`express-bot` — CLI-инструмент для отправки сообщений в eXpress. Для интеграции с внешними системами (мониторинг, CI/CD, скрипты) нужен HTTP-интерфейс, через который можно отправлять сообщения без вызова CLI.
+`express-botx` — CLI-инструмент для отправки сообщений в eXpress. Для интеграции с внешними системами (мониторинг, CI/CD, скрипты) нужен HTTP-интерфейс, через который можно отправлять сообщения без вызова CLI.
 
 ## Решение
 
-Новая субкоманда `express-bot serve`, запускающая HTTP-сервер. Переиспользует всю существующую инфраструктуру: конфиг, auth, token cache, botapi-клиент.
+Новая субкоманда `express-botx serve`, запускающая HTTP-сервер. Переиспользует всю существующую инфраструктуру: конфиг, auth, token cache, botapi-клиент.
 
 ### Почему субкоманда, а не отдельный бинарник
 
@@ -54,7 +54,7 @@ server:
 ### CLI-флаги
 
 ```bash
-express-bot serve [flags]
+express-botx serve [flags]
 
   --listen ADDR       Адрес для прослушивания (переопределяет конфиг)
   --api-key KEY       API-ключ (переопределяет конфиг, для быстрого старта)
@@ -236,13 +236,13 @@ Health-check без аутентификации.
 
 ```bash
 # Минимальный запуск
-express-bot serve --api-key my-secret-key
+express-botx serve --api-key my-secret-key
 
 # С конфигом
-express-bot serve
+express-botx serve
 
 # Переопределение адреса
-express-bot serve --listen 127.0.0.1:9090
+express-botx serve --listen 127.0.0.1:9090
 
 # Отправка через curl
 curl -X POST http://localhost:8080/api/v1/send \
@@ -310,12 +310,12 @@ defer stop()
 
 ## Проверка
 
-1. `express-bot serve --api-key test` — стартует на `:8080`
+1. `express-botx serve --api-key test` — стартует на `:8080`
 2. `curl localhost:8080/healthz` — 200
 3. `curl -H "Authorization: Bearer test" -d '{"chat_id":"...", "message":"hi"}' localhost:8080/api/v1/send` — 200
 4. `curl -H "X-API-Key: test" -d '...' localhost:8080/api/v1/send` — 200
 5. `curl -d '...' localhost:8080/api/v1/send` — 401
 6. `curl -H "X-API-Key: wrong" -d '...' localhost:8080/api/v1/send` — 403
 7. `curl -H "X-API-Key: test" -d '{}' localhost:8080/api/v1/send` — 400
-8. `express-bot serve` (без ключей в конфиге) — ошибка запуска
+8. `express-botx serve` (без ключей в конфиге) — ошибка запуска
 9. `kill -TERM <pid>` — graceful shutdown

@@ -8,7 +8,7 @@
 Сейчас для отправки сообщения нужно указывать UUID чата:
 
 ```bash
-express-bot send message --chat-id 7ee8aaa9-c6cb-5ee6-8445-7d654819b285 "Деплой OK"
+express-botx send message --chat-id 7ee8aaa9-c6cb-5ee6-8445-7d654819b285 "Деплой OK"
 ```
 
 UUID невозможно запомнить, легко перепутать и неудобно использовать в скриптах. В конфиге можно указать только один `chat_id` — при работе с несколькими чатами приходится каждый раз передавать UUID через флаг.
@@ -44,18 +44,18 @@ chats:
 
 ```bash
 # По имени из конфига
-express-bot send message --chat-id deploy "Деплой завершён"
-express-bot send message --chat-id alerts "CPU > 90%"
-express-bot send file --chat-id reports ./report.pdf
+express-botx send message --chat-id deploy "Деплой завершён"
+express-botx send message --chat-id alerts "CPU > 90%"
+express-botx send file --chat-id reports ./report.pdf
 
 # UUID по-прежнему работает
-express-bot send message --chat-id 7ee8aaa9-c6cb-5ee6-8445-7d654819b285 "Hello"
+express-botx send message --chat-id 7ee8aaa9-c6cb-5ee6-8445-7d654819b285 "Hello"
 
 # Без --chat-id — берётся chat_id из конфига (как сейчас)
-express-bot send message "Hello"
+express-botx send message "Hello"
 
 # chats info по имени
-express-bot chats info --chat-id deploy
+express-botx chats info --chat-id deploy
 ```
 
 ### Правила резолва `--chat-id`
@@ -127,13 +127,13 @@ func (c *Config) ResolveChatID() error {
 
 ```bash
 # Добавить / обновить алиас
-express-bot chats alias set deploy 7ee8aaa9-c6cb-5ee6-8445-7d654819b285
+express-botx chats alias set deploy 7ee8aaa9-c6cb-5ee6-8445-7d654819b285
 
 # Список алиасов
-express-bot chats alias list
+express-botx chats alias list
 
 # Удалить алиас
-express-bot chats alias rm deploy
+express-botx chats alias rm deploy
 ```
 
 Эти команды читают и перезаписывают конфиг-файл. Требуют `--config` (или дефолтный путь).

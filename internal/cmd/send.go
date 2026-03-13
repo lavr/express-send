@@ -10,9 +10,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lavr/express-bot/internal/botapi"
-	"github.com/lavr/express-bot/internal/config"
-	"github.com/lavr/express-bot/internal/input"
+	"github.com/lavr/express-botx/internal/botapi"
+	"github.com/lavr/express-botx/internal/config"
+	"github.com/lavr/express-botx/internal/input"
 )
 
 func runSend(args []string, deps Deps) error {
@@ -41,7 +41,7 @@ func runSend(args []string, deps Deps) error {
 	fs.BoolVar(&noNotify, "no-notify", false, "do not send notification at all")
 	fs.StringVar(&metadata, "metadata", "", "arbitrary JSON for notification.metadata")
 	fs.Usage = func() {
-		fmt.Fprintf(deps.Stderr, `Usage: express-bot send [options] [message]
+		fmt.Fprintf(deps.Stderr, `Usage: express-botx send [options] [message]
 
 Send a message and/or file to an eXpress chat.
 

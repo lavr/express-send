@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	vlog "github.com/lavr/express-bot/internal/log"
+	vlog "github.com/lavr/express-botx/internal/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -287,7 +287,7 @@ func LoadMinimal(flags Flags) (*Config, error) {
 		configPath = findConfigFile()
 	}
 	if configPath == "" {
-		configPath = "express-bot.yaml"
+		configPath = "express-botx.yaml"
 	}
 	cfg.configPath = configPath
 	if data, err := os.ReadFile(configPath); err == nil {
@@ -313,15 +313,15 @@ func LoadMinimal(flags Flags) (*Config, error) {
 }
 
 // findConfigFile searches for a config file in standard locations:
-// 1. ./express-bot.yaml or ./express-bot.yml (current directory)
-// 2. <UserConfigDir>/express-bot/config.yaml (platform-specific)
-//    - macOS: ~/Library/Application Support/express-bot/config.yaml
-//    - Linux: ~/.config/express-bot/config.yaml
-//    - Windows: %AppData%/express-bot/config.yaml
+// 1. ./express-botx.yaml or ./express-botx.yml (current directory)
+// 2. <UserConfigDir>/express-botx/config.yaml (platform-specific)
+//    - macOS: ~/Library/Application Support/express-botx/config.yaml
+//    - Linux: ~/.config/express-botx/config.yaml
+//    - Windows: %AppData%/express-botx/config.yaml
 // Returns empty string if no config file is found.
 func findConfigFile() string {
 	// 1. Current directory
-	for _, name := range []string{"express-bot.yaml", "express-bot.yml"} {
+	for _, name := range []string{"express-botx.yaml", "express-botx.yml"} {
 		if _, err := os.Stat(name); err == nil {
 			abs, err := filepath.Abs(name)
 			if err == nil {
@@ -343,7 +343,7 @@ func findConfigFile() string {
 		}
 	}
 	for _, dir := range configDirs {
-		p := filepath.Join(dir, "express-bot", "config.yaml")
+		p := filepath.Join(dir, "express-botx", "config.yaml")
 		if _, err := os.Stat(p); err == nil {
 			return p
 		}

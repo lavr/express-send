@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	vlog "github.com/lavr/express-bot/internal/log"
+	vlog "github.com/lavr/express-botx/internal/log"
 )
 
 type ctxKey int
