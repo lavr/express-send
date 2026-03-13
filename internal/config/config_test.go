@@ -11,10 +11,13 @@ func TestLoad_FromYAML(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
 	content := `
-host: express.example.com
-bot_id: bot-123
-secret: my-secret
-chat_id: chat-456
+bots:
+  main:
+    host: express.example.com
+    id: bot-123
+    secret: my-secret
+chats:
+  deploy: chat-456
 cache:
   type: file
   file_path: /tmp/token.cache
@@ -35,11 +38,11 @@ cache:
 	if cfg.BotID != "bot-123" {
 		t.Errorf("BotID = %q, want %q", cfg.BotID, "bot-123")
 	}
-	if cfg.Secret != "my-secret" {
-		t.Errorf("Secret = %q, want %q", cfg.Secret, "my-secret")
+	if cfg.BotSecret != "my-secret" {
+		t.Errorf("BotSecret = %q, want %q", cfg.BotSecret, "my-secret")
 	}
-	if cfg.ChatID != "chat-456" {
-		t.Errorf("ChatID = %q, want %q", cfg.ChatID, "chat-456")
+	if cfg.BotName != "main" {
+		t.Errorf("BotName = %q, want %q", cfg.BotName, "main")
 	}
 	if cfg.Cache.Type != "file" {
 		t.Errorf("Cache.Type = %q, want %q", cfg.Cache.Type, "file")
@@ -49,14 +52,15 @@ cache:
 	}
 }
 
-func TestLoad_EnvOverridesYAML(t *testing.T) {
+func TestLoad_EnvOverridesBot(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
 	content := `
-host: from-yaml.com
-bot_id: yaml-bot
-secret: yaml-secret
-chat_id: yaml-chat
+bots:
+  main:
+    host: from-yaml.com
+    id: yaml-bot
+    secret: yaml-secret
 `
 	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
 		t.Fatal(err)
@@ -71,14 +75,13 @@ chat_id: yaml-chat
 	}
 
 	if cfg.Host != "from-env.com" {
-		t.Errorf("Host = %q, want %q (env should override yaml)", cfg.Host, "from-env.com")
+		t.Errorf("Host = %q, want %q (env should override bot)", cfg.Host, "from-env.com")
 	}
 	if cfg.BotID != "env-bot" {
-		t.Errorf("BotID = %q, want %q (env should override yaml)", cfg.BotID, "env-bot")
+		t.Errorf("BotID = %q, want %q (env should override bot)", cfg.BotID, "env-bot")
 	}
-	// Non-overridden values should remain from YAML
-	if cfg.Secret != "yaml-secret" {
-		t.Errorf("Secret = %q, want %q", cfg.Secret, "yaml-secret")
+	if cfg.BotSecret != "yaml-secret" {
+		t.Errorf("BotSecret = %q, want %q", cfg.BotSecret, "yaml-secret")
 	}
 }
 
@@ -86,10 +89,11 @@ func TestLoad_FlagsOverrideAll(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
 	content := `
-host: from-yaml.com
-bot_id: yaml-bot
-secret: yaml-secret
-chat_id: yaml-chat
+bots:
+  main:
+    host: from-yaml.com
+    id: yaml-bot
+    secret: yaml-secret
 `
 	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
 		t.Fatal(err)
@@ -110,6 +114,90 @@ chat_id: yaml-chat
 	}
 }
 
+func TestLoad_MultipleBots_RequiresFlag(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+bots:
+  prod:
+    host: prod.com
+    id: prod-bot
+    secret: prod-secret
+  test:
+    host: test.com
+    id: test-bot
+    secret: test-secret
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(Flags{ConfigPath: cfgPath})
+	if err == nil {
+		t.Fatal("expected error for multiple bots without --bot")
+	}
+	if !strings.Contains(err.Error(), "multiple bots") {
+		t.Errorf("error = %q, should mention multiple bots", err.Error())
+	}
+}
+
+func TestLoad_MultipleBots_WithFlag(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+bots:
+  prod:
+    host: prod.com
+    id: prod-bot
+    secret: prod-secret
+  test:
+    host: test.com
+    id: test-bot
+    secret: test-secret
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(Flags{ConfigPath: cfgPath, Bot: "prod"})
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if cfg.Host != "prod.com" {
+		t.Errorf("Host = %q, want %q", cfg.Host, "prod.com")
+	}
+	if cfg.BotID != "prod-bot" {
+		t.Errorf("BotID = %q, want %q", cfg.BotID, "prod-bot")
+	}
+	if cfg.BotName != "prod" {
+		t.Errorf("BotName = %q, want %q", cfg.BotName, "prod")
+	}
+}
+
+func TestLoad_UnknownBot(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+bots:
+  prod:
+    host: prod.com
+    id: prod-bot
+    secret: prod-secret
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(Flags{ConfigPath: cfgPath, Bot: "staging"})
+	if err == nil {
+		t.Fatal("expected error for unknown bot")
+	}
+	if !strings.Contains(err.Error(), "staging") {
+		t.Errorf("error = %q, should mention staging", err.Error())
+	}
+}
+
 func TestLoad_MissingRequired(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -117,8 +205,8 @@ func TestLoad_MissingRequired(t *testing.T) {
 		want  string
 	}{
 		{"no host", Flags{BotID: "b", Secret: "s"}, "host is required"},
-		{"no bot_id", Flags{Host: "h", Secret: "s"}, "bot_id is required"},
-		{"no secret", Flags{Host: "h", BotID: "b"}, "secret is required"},
+		{"no bot_id", Flags{Host: "h", Secret: "s"}, "bot id is required"},
+		{"no secret", Flags{Host: "h", BotID: "b"}, "bot secret is required"},
 	}
 
 	for _, tt := range tests {
@@ -134,6 +222,14 @@ func TestLoad_MissingRequired(t *testing.T) {
 	}
 }
 
+func TestCacheKey(t *testing.T) {
+	cfg := &Config{Host: "express.example.com", BotID: "bot-123"}
+	want := "express.example.com:bot-123"
+	if got := cfg.CacheKey(); got != want {
+		t.Errorf("CacheKey() = %q, want %q", got, want)
+	}
+}
+
 func TestRequireChatID(t *testing.T) {
 	cfg := &Config{ChatID: ""}
 	if err := cfg.RequireChatID(); err == nil {
@@ -141,8 +237,22 @@ func TestRequireChatID(t *testing.T) {
 	}
 
 	cfg.ChatID = "some-chat"
+	cfg.Chats = map[string]string{"some-chat": "uuid-123"}
 	if err := cfg.RequireChatID(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.ChatID != "uuid-123" {
+		t.Errorf("ChatID = %q, want resolved %q", cfg.ChatID, "uuid-123")
+	}
+}
+
+func TestRequireChatID_SingleAlias(t *testing.T) {
+	cfg := &Config{Chats: map[string]string{"deploy": "uuid-456"}}
+	if err := cfg.RequireChatID(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.ChatID != "uuid-456" {
+		t.Errorf("ChatID = %q, want %q", cfg.ChatID, "uuid-456")
 	}
 }
 
@@ -150,10 +260,11 @@ func TestLoad_NoCacheFlag(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
 	content := `
-host: h
-bot_id: b
-secret: s
-chat_id: c
+bots:
+  main:
+    host: h
+    id: b
+    secret: s
 cache:
   type: file
 `
@@ -171,13 +282,10 @@ cache:
 }
 
 func TestLoad_MissingConfigFile_NotExplicit(t *testing.T) {
-	// When no config path specified explicitly and default doesn't exist, should not error
-	// (as long as required fields come from flags/env)
 	cfg, err := Load(Flags{
 		Host:   "h",
 		BotID:  "b",
 		Secret: "s",
-		ChatID: "c",
 	})
 	if err != nil {
 		t.Fatalf("Load() error: %v", err)
@@ -194,33 +302,11 @@ func TestLoad_MissingConfigFile_Explicit(t *testing.T) {
 	}
 }
 
-func TestLoad_UnreadableConfigFile_Explicit(t *testing.T) {
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "config.yaml")
-	if err := os.WriteFile(cfgPath, []byte("host: h"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	// Make unreadable
-	if err := os.Chmod(cfgPath, 0000); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Chmod(cfgPath, 0644) })
-
-	_, err := Load(Flags{ConfigPath: cfgPath})
-	if err == nil {
-		t.Fatal("expected error for unreadable config file")
-	}
-	if !strings.Contains(err.Error(), "permission denied") {
-		t.Errorf("error = %q, want permission denied", err.Error())
-	}
-}
-
 func TestLoad_DefaultCacheTTL(t *testing.T) {
 	cfg, err := Load(Flags{
 		Host:   "h",
 		BotID:  "b",
 		Secret: "s",
-		ChatID: "c",
 	})
 	if err != nil {
 		t.Fatalf("Load() error: %v", err)

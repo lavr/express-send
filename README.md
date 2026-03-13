@@ -2,7 +2,7 @@
 
 CLI-утилита для работы с корпоративным мессенджером eXpress через BotX API.
 
-Поддерживает отправку сообщений в чаты и получение информации о боте. Работает в стиле Unix: принимает текст из аргумента, файла или stdin, конфигурируется через файл, переменные окружения и флаги.
+Поддерживает отправку сообщений и файлов в чаты, получение информации о боте. Работает в стиле Unix: принимает текст из аргумента, файла или stdin, конфигурируется через файл, переменные окружения и флаги.
 
 ## Установка
 
@@ -28,30 +28,48 @@ express-bot <command> [options]
 
 | Команда | Описание |
 |---|---|
-| `send` | Отправить сообщение в чат |
+| `send message` | Отправить текстовое сообщение в чат |
+| `send file` | Отправить файл в чат |
 | `chats list` | Показать список чатов бота |
+| `chats info` | Показать детальную информацию о чате |
+| `bot ping` | Проверить авторизацию и доступность API |
+| `bot info` | Показать информацию о боте и статус авторизации |
+| `user search` | Найти пользователя по email, HUID или AD-логину |
 
-### send — отправка сообщений
+### send message — отправка сообщений
 
 ```bash
 # Текст как аргумент
-express-bot send "Сборка #42 прошла успешно"
+express-bot send message "Сборка #42 прошла успешно"
 
 # Несколько слов без кавычек тоже работают
-express-bot send Deploy finished successfully
+express-bot send message Deploy finished successfully
 
 # Из файла
-express-bot send --message-from report.txt
+express-bot send message --from report.txt
 
 # Из stdin (пайплайн)
-echo "Deploy OK" | express-bot send
-cat changelog.md | express-bot send
+echo "Deploy OK" | express-bot send message
+cat changelog.md | express-bot send message
 
 # Всё через флаги
-express-bot send --host express.company.ru --bot-id UUID --secret KEY --chat-id UUID "Hello"
+express-bot send message --host express.company.ru --bot-id UUID --secret KEY --chat-id UUID "Hello"
 ```
 
 При успехе утилита завершается молча (exit 0). Ошибки выводятся в stderr (exit 1).
+
+### send file — отправка файлов
+
+```bash
+# Файл по пути
+express-bot send file --chat-id UUID ./report.pdf
+
+# С подписью
+express-bot send file --chat-id UUID --caption "Отчёт за март" ./report.pdf
+
+# Из stdin (--filename обязателен)
+cat image.png | express-bot send file --chat-id UUID --filename image.png
+```
 
 ### chats list — список чатов
 
@@ -61,6 +79,59 @@ express-bot chats list --config /path/to/config.yaml
 ```
 
 Выводит список чатов, в которых состоит бот (имя, тип, количество участников).
+
+### chats info — информация о чате
+
+```bash
+express-bot chats info --chat-id UUID
+express-bot chats info --chat-id UUID --format json
+```
+
+Выводит детали чата: имя, тип, описание, shared_history, список участников.
+
+### bot ping — проверка доступности
+
+```bash
+express-bot bot ping
+express-bot bot ping --quiet   # только exit code
+```
+
+Проверяет авторизацию (получение токена) и доступность API (запрос списка чатов). Всегда обходит кэш токенов.
+
+Формат вывода:
+- Успех: `OK 234ms`
+- Ошибка авторизации: `FAIL auth: ...`
+- Ошибка API: `FAIL api: ...`
+
+### bot info — информация о боте
+
+```bash
+express-bot bot info
+express-bot bot info --format json
+```
+
+Показывает Bot ID, хост, режим кэширования и статус авторизации.
+
+### user search — поиск пользователя
+
+```bash
+express-bot user search --email user@example.com
+express-bot user search --huid UUID
+express-bot user search --ad-login jdoe
+express-bot user search --email user@example.com --format json
+```
+
+Ищет пользователя по одному из трёх параметров (обязательно указать ровно один). Выводит HUID, имя, email, AD-логин, отдел, должность.
+
+## Формат вывода
+
+По умолчанию вывод в текстовом формате. Флаг `--format json` переключает вывод в JSON с отступами:
+
+```bash
+express-bot chats list --format json
+express-bot bot info --format json
+express-bot user search --email user@example.com --format json
+```
 
 ## Конфигурация
 
@@ -110,13 +181,28 @@ cache:
 --secret        секрет бота (литерал, env:VAR или vault:path#key)
 --config        путь к файлу конфигурации
 --no-cache      отключить кэширование токена
+--format        формат вывода: text или json (по умолчанию: text)
 ```
 
-### Флаги команды send
+### Флаги команды send message
 
 ```
 --chat-id       UUID целевого чата
---message-from  прочитать сообщение из файла
+--from          прочитать сообщение из файла
+```
+
+### Флаги команды send file
+
+```
+--chat-id       UUID целевого чата
+--caption       подпись к файлу
+--filename      имя файла (обязательно при чтении из stdin)
+```
+
+### Флаги команды bot ping
+
+```
+--quiet         только exit code, без вывода
 ```
 
 ## Секреты
@@ -125,13 +211,13 @@ cache:
 
 ```bash
 # Литеральное значение
-express-bot send --secret "my-secret-key" "Hello"
+express-bot send message --secret "my-secret-key" "Hello"
 
 # Из переменной окружения
-express-bot send --secret env:EXPRESS_BOT_SECRET "Hello"
+express-bot send message --secret env:EXPRESS_BOT_SECRET "Hello"
 
 # Из HashiCorp Vault (KV v2)
-express-bot send --secret "vault:secret/data/express#bot_secret" "Hello"
+express-bot send message --secret "vault:secret/data/express#bot_secret" "Hello"
 ```
 
 Для Vault необходимы переменные `VAULT_ADDR` и `VAULT_TOKEN`.
@@ -166,7 +252,7 @@ cache:
 ### Отключение кэша
 
 ```bash
-express-bot send --no-cache "Hello"
+express-bot send message --no-cache "Hello"
 ```
 
 Или в конфиге: `cache.type: none` (значение по умолчанию).
@@ -174,22 +260,35 @@ express-bot send --no-cache "Hello"
 ## Как это работает
 
 1. Загрузка конфигурации (YAML + env + флаги)
-2. Чтение сообщения (файл / аргумент / stdin) — для `send`
+2. Чтение сообщения (файл / аргумент / stdin) — для `send message`
 3. Разрешение секрета (литерал / env / Vault)
 4. Подпись HMAC-SHA256: `HMAC(key=secret, msg=bot_id)` — hex uppercase
 5. Получение токена: `GET /api/v2/botx/bots/{bot_id}/token?signature={sig}`
 6. Выполнение команды:
-   - `send`: `POST /api/v4/botx/notifications/direct` с `Authorization: Bearer {token}`
+   - `send message`: `POST /api/v4/botx/notifications/direct` с `Authorization: Bearer {token}`
+   - `send file`: `POST /api/v3/botx/files/upload` (multipart/form-data)
    - `chats list`: `GET /api/v3/botx/chats/list`
-7. При ответе 401 — автоматический повтор с новым токеном (один раз, только для `send`)
+   - `chats info`: `GET /api/v3/botx/chats/list` → фильтрация по UUID
+   - `bot ping`: auth + `GET /api/v3/botx/chats/list` (обходит кэш)
+   - `bot info`: конфигурация + проверка auth
+   - `user search`: `POST /api/v3/botx/users/by_huid|by_email|by_login`
+7. При ответе 401 — автоматический повтор с новым токеном (один раз, для `send message` и `send file`)
 
 ## Структура проекта
 
 ```
 express-send/
-  main.go                       # точка входа: субкоманды send, chats
+  main.go                       # точка входа
   internal/
-    botapi/client.go            # API-клиент: ListChats(), SendNotification()
+    cmd/                        # субкоманды
+      cmd.go                    #   диспетчер, Deps, authenticate, helpers
+      send.go                   #   send message
+      sendfile.go               #   send file
+      chats.go                  #   chats list, chats info
+      bot.go                    #   bot ping, bot info
+      user.go                   #   user search
+      output.go                 #   printOutput() — text/json formatter
+    botapi/client.go            # API-клиент: ListChats(), GetChatInfo(), SendNotification(), UploadFile(), SearchUserBy*()
     config/config.go            # Config struct, Load() — YAML/env/flag layering
     secret/secret.go            # Resolve(): литерал / env:VAR / vault:path#key
     auth/auth.go                # BuildSignature(), GetToken()

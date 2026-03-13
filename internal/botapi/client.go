@@ -3,9 +3,13 @@ package botapi
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"mime"
 	"net/http"
+	"path/filepath"
 	"time"
 )
 
@@ -66,34 +70,125 @@ func (c *Client) ListChats(ctx context.Context) ([]ChatInfo, error) {
 	return result.Result, nil
 }
 
-type notificationRequest struct {
-	GroupChatID  string       `json:"group_chat_id"`
-	Notification notification `json:"notification"`
+// GetChatInfo returns info for a specific chat by UUID.
+func (c *Client) GetChatInfo(ctx context.Context, chatID string) (*ChatInfo, error) {
+	chats, err := c.ListChats(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range chats {
+		if chats[i].GroupChatID == chatID {
+			return &chats[i], nil
+		}
+	}
+	return nil, fmt.Errorf("chat not found: %s", chatID)
 }
 
-type notification struct {
-	Status string `json:"status"`
-	Body   string `json:"body"`
+// UserInfo holds information about a user.
+type UserInfo struct {
+	HUID      string   `json:"user_huid"`
+	Name      string   `json:"name"`
+	Emails    []string `json:"emails"`
+	ADLogin   string   `json:"ad_login,omitempty"`
+	ADDomain  string   `json:"ad_domain,omitempty"`
+	Company   string   `json:"company,omitempty"`
+	Title     string   `json:"company_position,omitempty"`
+	Department string  `json:"department,omitempty"`
+	Active    bool     `json:"active"`
+	UserKind  string   `json:"user_kind,omitempty"`
 }
 
-type sendResponse struct {
-	Status string `json:"status"`
+type userByHUIDResponse struct {
+	Status string   `json:"status"`
+	Result UserInfo `json:"result"`
+}
+
+// GetUserByHUID fetches user info by HUID.
+func (c *Client) GetUserByHUID(ctx context.Context, huid string) (*UserInfo, error) {
+	return c.getUser(ctx, "/api/v3/botx/users/by_huid?user_huid="+huid)
+}
+
+// GetUserByEmail fetches user info by email.
+func (c *Client) GetUserByEmail(ctx context.Context, email string) (*UserInfo, error) {
+	return c.getUser(ctx, "/api/v3/botx/users/by_email?email="+email)
+}
+
+// GetUserByADLogin fetches user info by AD login and domain.
+func (c *Client) GetUserByADLogin(ctx context.Context, login, domain string) (*UserInfo, error) {
+	return c.getUser(ctx, "/api/v3/botx/users/by_login?ad_login="+login+"&ad_domain="+domain)
+}
+
+func (c *Client) getUser(ctx context.Context, path string) (*UserInfo, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("getting user: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("get user failed: HTTP %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var result userByHUIDResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decoding response: %w", err)
+	}
+
+	return &result.Result, nil
+}
+
+// SendRequest is the unified request for POST /api/v4/botx/notifications/direct.
+type SendRequest struct {
+	GroupChatID   string            `json:"group_chat_id"`
+	Notification  *SendNotification `json:"notification,omitempty"`
+	File          *SendFile         `json:"file,omitempty"`
+	Opts          *SendOpts         `json:"opts,omitempty"`
+}
+
+// SendNotification is the notification part of a send request.
+type SendNotification struct {
+	Status   string              `json:"status"`
+	Body     string              `json:"body"`
+	Metadata json.RawMessage     `json:"metadata,omitempty"`
+	Opts     *NotificationMsgOpts `json:"opts,omitempty"`
+}
+
+// NotificationMsgOpts controls per-message notification behavior.
+type NotificationMsgOpts struct {
+	SilentResponse bool `json:"silent_response,omitempty"`
+}
+
+// SendFile is a file attachment sent inline as a base64 data URI.
+type SendFile struct {
+	FileName string `json:"file_name"`
+	Data     string `json:"data"` // data:mime;base64,...
+}
+
+// SendOpts controls delivery-level options.
+type SendOpts struct {
+	StealthMode      bool          `json:"stealth_mode,omitempty"`
+	NotificationOpts *DeliveryOpts `json:"notification_opts,omitempty"`
+}
+
+// DeliveryOpts controls push notification delivery.
+type DeliveryOpts struct {
+	Send     *bool `json:"send,omitempty"`
+	ForceDND bool  `json:"force_dnd,omitempty"`
 }
 
 // ErrUnauthorized indicates the token is invalid or expired.
 var ErrUnauthorized = fmt.Errorf("unauthorized (HTTP 401)")
 
-// SendNotification posts a message to a chat via BotX API.
-func (c *Client) SendNotification(ctx context.Context, chatID, message string) error {
-	payload := notificationRequest{
-		GroupChatID: chatID,
-		Notification: notification{
-			Status: "ok",
-			Body:   message,
-		},
-	}
-
-	body, err := json.Marshal(payload)
+// Send posts a notification (text and/or file) to a chat via BotX API.
+func (c *Client) Send(ctx context.Context, sr *SendRequest) error {
+	body, err := json.Marshal(sr)
 	if err != nil {
 		return fmt.Errorf("marshaling request: %w", err)
 	}
@@ -108,7 +203,7 @@ func (c *Client) SendNotification(ctx context.Context, chatID, message string) e
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("sending notification: %w", err)
+		return fmt.Errorf("sending: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -116,22 +211,24 @@ func (c *Client) SendNotification(ctx context.Context, chatID, message string) e
 		return ErrUnauthorized
 	}
 
-	if resp.StatusCode == http.StatusAccepted {
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusCreated, http.StatusAccepted:
 		return nil
+	default:
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("send failed: HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
+}
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("notification failed: HTTP %d", resp.StatusCode)
+// BuildFileAttachment reads file data and returns a SendFile with base64 data URI.
+func BuildFileAttachment(filename string, data []byte) *SendFile {
+	mimeType, _, _ := mime.ParseMediaType(mime.TypeByExtension(filepath.Ext(filename)))
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
 	}
-
-	var result sendResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("decoding response: %w", err)
+	dataURI := fmt.Sprintf("data:%s;base64,%s", mimeType, base64.StdEncoding.EncodeToString(data))
+	return &SendFile{
+		FileName: filename,
+		Data:     dataURI,
 	}
-
-	if result.Status != "ok" {
-		return fmt.Errorf("unexpected status: %s", result.Status)
-	}
-
-	return nil
 }

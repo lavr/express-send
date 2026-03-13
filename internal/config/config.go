@@ -5,17 +5,33 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Host   string      `yaml:"host"`
-	BotID  string      `yaml:"bot_id"`
-	Secret string      `yaml:"secret"`
-	ChatID string      `yaml:"chat_id"`
-	Cache  CacheConfig `yaml:"cache"`
+	Bots  map[string]BotConfig `yaml:"bots,omitempty"`
+	Chats map[string]string    `yaml:"chats,omitempty"`
+	Cache CacheConfig          `yaml:"cache"`
+
+	// Resolved at runtime (not persisted).
+	Host       string `yaml:"-"`
+	BotID      string `yaml:"-"`
+	BotSecret  string `yaml:"-"`
+	BotName    string `yaml:"-"`
+	ChatID     string `yaml:"-"`
+	Format     string `yaml:"-"`
+	configPath string
+}
+
+type BotConfig struct {
+	Host   string `yaml:"host"`
+	ID     string `yaml:"id"`
+	Secret string `yaml:"secret"`
 }
 
 type CacheConfig struct {
@@ -29,14 +45,16 @@ type CacheConfig struct {
 // Flags holds CLI flag values for layering on top of file/env config.
 type Flags struct {
 	ConfigPath string
+	Bot        string
 	Host       string
 	BotID      string
 	Secret     string
 	ChatID     string
 	NoCache    bool
+	Format     string
 }
 
-// Load reads configuration with layering: YAML file → env vars → CLI flags.
+// Load reads configuration with layering: YAML file → resolve bot → env → CLI flags.
 func Load(flags Flags) (*Config, error) {
 	cfg := &Config{
 		Cache: CacheConfig{
@@ -50,22 +68,26 @@ func Load(flags Flags) (*Config, error) {
 	if configPath == "" {
 		configPath = defaultConfigPath()
 	}
+	cfg.configPath = configPath
 	if data, err := os.ReadFile(configPath); err == nil {
 		if err := yaml.Unmarshal(data, cfg); err != nil {
 			return nil, fmt.Errorf("parsing config %s: %w", configPath, err)
 		}
 	} else if flags.ConfigPath != "" {
-		// User explicitly specified a config file — always error
 		return nil, fmt.Errorf("reading config %s: %w", configPath, err)
 	} else if !errors.Is(err, os.ErrNotExist) {
-		// Default config exists but is unreadable — report the real cause
 		return nil, fmt.Errorf("reading config %s: %w", configPath, err)
 	}
 
-	// Layer 2: environment variables
+	// Layer 2: resolve bot from config
+	if err := cfg.resolveBot(flags.Bot); err != nil {
+		return nil, err
+	}
+
+	// Layer 3: environment variables (override resolved bot)
 	applyEnv(cfg)
 
-	// Layer 3: CLI flags (highest priority)
+	// Layer 4: CLI flags (highest priority)
 	applyFlags(cfg, flags)
 
 	// Validate required fields
@@ -73,21 +95,173 @@ func Load(flags Flags) (*Config, error) {
 		return nil, fmt.Errorf("host is required (--host, EXPRESS_HOST, or config file)")
 	}
 	if cfg.BotID == "" {
-		return nil, fmt.Errorf("bot_id is required (--bot-id, EXPRESS_BOT_ID, or config file)")
+		return nil, fmt.Errorf("bot id is required (--bot-id, EXPRESS_BOT_ID, or config file)")
 	}
-	if cfg.Secret == "" {
-		return nil, fmt.Errorf("secret is required (--secret, EXPRESS_SECRET, or config file)")
+	if cfg.BotSecret == "" {
+		return nil, fmt.Errorf("bot secret is required (--secret, EXPRESS_SECRET, or config file)")
 	}
 
 	return cfg, nil
 }
 
-// RequireChatID returns an error if ChatID is empty.
-func (c *Config) RequireChatID() error {
-	if c.ChatID == "" {
-		return fmt.Errorf("chat_id is required (--chat-id, EXPRESS_CHAT_ID, or config file)")
+// CacheKey returns the composite cache key for token storage.
+func (c *Config) CacheKey() string {
+	return c.Host + ":" + c.BotID
+}
+
+func (c *Config) resolveBot(botFlag string) error {
+	if botFlag != "" {
+		bot, ok := c.Bots[botFlag]
+		if !ok {
+			return fmt.Errorf("unknown bot %q, available: %s", botFlag, c.botNames())
+		}
+		c.Host = bot.Host
+		c.BotID = bot.ID
+		c.BotSecret = bot.Secret
+		c.BotName = botFlag
+		return nil
+	}
+
+	switch len(c.Bots) {
+	case 0:
+		// no bots in config — rely on env/flags
+	case 1:
+		for name, bot := range c.Bots {
+			c.Host = bot.Host
+			c.BotID = bot.ID
+			c.BotSecret = bot.Secret
+			c.BotName = name
+		}
+	default:
+		return fmt.Errorf("multiple bots configured, specify one with --bot: %s", c.botNames())
 	}
 	return nil
+}
+
+func (c *Config) botNames() string {
+	names := make([]string, 0, len(c.Bots))
+	for k := range c.Bots {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	return strings.Join(names, ", ")
+}
+
+// ValidateFormat returns an error if Format is not "text" or "json".
+func (c *Config) ValidateFormat() error {
+	if c.Format != "text" && c.Format != "json" {
+		return fmt.Errorf("invalid format %q: must be \"text\" or \"json\"", c.Format)
+	}
+	return nil
+}
+
+var uuidRe = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// ResolveChatID resolves ChatID: if it looks like a UUID, use as-is;
+// otherwise look it up in the Chats alias map.
+func (c *Config) ResolveChatID() error {
+	if c.ChatID == "" || uuidRe.MatchString(c.ChatID) {
+		return nil
+	}
+	if uuid, ok := c.Chats[c.ChatID]; ok {
+		c.ChatID = uuid
+		return nil
+	}
+	names := make([]string, 0, len(c.Chats))
+	for k := range c.Chats {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	if len(names) == 0 {
+		return fmt.Errorf("unknown chat %q (no aliases configured)", c.ChatID)
+	}
+	return fmt.Errorf("unknown chat alias %q, available: %s", c.ChatID, strings.Join(names, ", "))
+}
+
+// RequireChatID resolves aliases and returns an error if ChatID is empty.
+// If ChatID is not set and there is exactly one alias, it is used automatically.
+func (c *Config) RequireChatID() error {
+	if err := c.ResolveChatID(); err != nil {
+		return err
+	}
+	if c.ChatID != "" {
+		return nil
+	}
+	switch len(c.Chats) {
+	case 0:
+		return fmt.Errorf("chat is required: use --chat-id or configure aliases in config (chats section)")
+	case 1:
+		for _, uuid := range c.Chats {
+			c.ChatID = uuid
+		}
+		return nil
+	default:
+		names := make([]string, 0, len(c.Chats))
+		for k := range c.Chats {
+			names = append(names, k)
+		}
+		sort.Strings(names)
+		return fmt.Errorf("multiple chats configured, specify one with --chat-id: %s", strings.Join(names, ", "))
+	}
+}
+
+// ConfigPath returns the resolved config file path.
+func (c *Config) ConfigPath() string {
+	return c.configPath
+}
+
+// SaveConfig writes the config back to its file.
+func (c *Config) SaveConfig() error {
+	if c.configPath == "" {
+		return fmt.Errorf("config path is not set")
+	}
+	if err := os.MkdirAll(filepath.Dir(c.configPath), 0o755); err != nil {
+		return fmt.Errorf("creating config dir: %w", err)
+	}
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("marshaling config: %w", err)
+	}
+	if err := os.WriteFile(c.configPath, data, 0o644); err != nil {
+		return fmt.Errorf("writing config %s: %w", c.configPath, err)
+	}
+	return nil
+}
+
+// LoadMinimal reads the config file without resolving bot or validating fields.
+// Used for alias/bot management commands.
+func LoadMinimal(flags Flags) (*Config, error) {
+	cfg := &Config{
+		Cache: CacheConfig{
+			Type: "none",
+			TTL:  3600,
+		},
+	}
+
+	configPath := flags.ConfigPath
+	if configPath == "" {
+		configPath = defaultConfigPath()
+	}
+	cfg.configPath = configPath
+	if data, err := os.ReadFile(configPath); err == nil {
+		if err := yaml.Unmarshal(data, cfg); err != nil {
+			return nil, fmt.Errorf("parsing config %s: %w", configPath, err)
+		}
+	} else if flags.ConfigPath != "" {
+		return nil, fmt.Errorf("reading config %s: %w", configPath, err)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("reading config %s: %w", configPath, err)
+	}
+
+	// Apply only format flag for LoadMinimal
+	if flags.Format != "" {
+		cfg.Format = flags.Format
+	}
+	if cfg.Format == "" {
+		cfg.Format = "text"
+	}
+
+	return cfg, nil
 }
 
 func defaultConfigPath() string {
@@ -106,10 +280,7 @@ func applyEnv(cfg *Config) {
 		cfg.BotID = v
 	}
 	if v := os.Getenv("EXPRESS_SECRET"); v != "" {
-		cfg.Secret = v
-	}
-	if v := os.Getenv("EXPRESS_CHAT_ID"); v != "" {
-		cfg.ChatID = v
+		cfg.BotSecret = v
 	}
 	if v := os.Getenv("EXPRESS_CACHE_TYPE"); v != "" {
 		cfg.Cache.Type = v
@@ -138,12 +309,18 @@ func applyFlags(cfg *Config, flags Flags) {
 		cfg.BotID = flags.BotID
 	}
 	if flags.Secret != "" {
-		cfg.Secret = flags.Secret
+		cfg.BotSecret = flags.Secret
 	}
 	if flags.ChatID != "" {
 		cfg.ChatID = flags.ChatID
 	}
 	if flags.NoCache {
 		cfg.Cache.Type = "none"
+	}
+	if flags.Format != "" {
+		cfg.Format = flags.Format
+	}
+	if cfg.Format == "" {
+		cfg.Format = "text"
 	}
 }
