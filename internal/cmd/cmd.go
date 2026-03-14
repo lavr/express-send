@@ -44,7 +44,7 @@ type Deps struct {
 func Run(args []string, deps Deps) error {
 	// Parse -v/-vv/-vvv before dispatching
 	level, args := vlog.ParseVerbosity(args)
-	if v := os.Getenv("EXPRESS_VERBOSE"); v != "" && level == 0 {
+	if v := os.Getenv("EXPRESS_BOTX_VERBOSE"); v != "" && level == 0 {
 		if n, err := strconv.Atoi(v); err == nil {
 			level = n
 		}

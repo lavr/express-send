@@ -237,15 +237,16 @@ server:
 
 | Переменная | Описание |
 |---|---|
-| `EXPRESS_HOST` | Хост сервера eXpress |
-| `EXPRESS_BOT_ID` | UUID бота |
-| `EXPRESS_SECRET` | Секрет бота |
-| `EXPRESS_CACHE_TYPE` | Тип кэша: `none`, `file`, `vault` |
-| `EXPRESS_CACHE_FILE_PATH` | Путь к файлу кэша токенов |
-| `EXPRESS_CACHE_TTL` | TTL кэша в секундах |
-| `EXPRESS_SERVER_LISTEN` | Адрес для прослушивания (serve) |
-| `EXPRESS_SERVER_BASE_PATH` | Базовый путь (serve) |
-| `EXPRESS_SERVER_API_KEY` | API-ключ (serve) |
+| `EXPRESS_BOTX_HOST` | Хост сервера eXpress |
+| `EXPRESS_BOTX_BOT_ID` | UUID бота |
+| `EXPRESS_BOTX_SECRET` | Секрет бота |
+| `EXPRESS_BOTX_CACHE_TYPE` | Тип кэша: `none`, `file`, `vault` |
+| `EXPRESS_BOTX_CACHE_FILE_PATH` | Путь к файлу кэша токенов |
+| `EXPRESS_BOTX_CACHE_TTL` | TTL кэша в секундах |
+| `EXPRESS_BOTX_SERVER_LISTEN` | Адрес для прослушивания (serve) |
+| `EXPRESS_BOTX_SERVER_BASE_PATH` | Базовый путь (serve) |
+| `EXPRESS_BOTX_SERVER_API_KEY` | API-ключ (serve) |
+| `EXPRESS_BOTX_VERBOSE` | Уровень логирования: 1-3 |
 
 ### Общие флаги
 
@@ -269,7 +270,7 @@ server:
 express-botx send --secret "my-secret-key" "Hello"
 
 # Из переменной окружения
-express-botx send --secret env:EXPRESS_BOT_SECRET "Hello"
+express-botx send --secret env:EXPRESS_BOTX_SECRET "Hello"
 
 # Из HashiCorp Vault (KV v2)
 express-botx send --secret "vault:secret/data/express#bot_secret" "Hello"

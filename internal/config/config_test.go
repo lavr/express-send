@@ -66,8 +66,8 @@ bots:
 		t.Fatal(err)
 	}
 
-	t.Setenv("EXPRESS_HOST", "from-env.com")
-	t.Setenv("EXPRESS_BOT_ID", "env-bot")
+	t.Setenv("EXPRESS_BOTX_HOST", "from-env.com")
+	t.Setenv("EXPRESS_BOTX_BOT_ID", "env-bot")
 
 	cfg, err := Load(Flags{ConfigPath: cfgPath})
 	if err != nil {
@@ -99,7 +99,7 @@ bots:
 		t.Fatal(err)
 	}
 
-	t.Setenv("EXPRESS_HOST", "from-env.com")
+	t.Setenv("EXPRESS_BOTX_HOST", "from-env.com")
 
 	cfg, err := Load(Flags{
 		ConfigPath: cfgPath,
@@ -159,9 +159,9 @@ bots:
 		t.Fatal(err)
 	}
 
-	t.Setenv("EXPRESS_HOST", "env.com")
-	t.Setenv("EXPRESS_BOT_ID", "env-bot")
-	t.Setenv("EXPRESS_SECRET", "env-secret")
+	t.Setenv("EXPRESS_BOTX_HOST", "env.com")
+	t.Setenv("EXPRESS_BOTX_BOT_ID", "env-bot")
+	t.Setenv("EXPRESS_BOTX_SECRET", "env-secret")
 
 	cfg, err := Load(Flags{ConfigPath: cfgPath})
 	if err != nil {
@@ -194,7 +194,7 @@ bots:
 	}
 
 	// Only partial env — should still error
-	t.Setenv("EXPRESS_HOST", "env.com")
+	t.Setenv("EXPRESS_BOTX_HOST", "env.com")
 
 	_, err := Load(Flags{ConfigPath: cfgPath})
 	if err == nil {
@@ -594,7 +594,7 @@ func TestLoadMinimal_FormatOverride(t *testing.T) {
 // --- Env overrides for cache ---
 
 func TestLoad_EnvCacheTTL(t *testing.T) {
-	t.Setenv("EXPRESS_CACHE_TTL", "600")
+	t.Setenv("EXPRESS_BOTX_CACHE_TTL", "600")
 
 	cfg, err := Load(Flags{Host: "h", BotID: "b", Secret: "s"})
 	if err != nil {
@@ -716,9 +716,9 @@ bots:
 	}
 
 	// If env provides full bot credentials, multi-bot should collapse to single-bot
-	t.Setenv("EXPRESS_HOST", "env.com")
-	t.Setenv("EXPRESS_BOT_ID", "env-bot")
-	t.Setenv("EXPRESS_SECRET", "env-secret")
+	t.Setenv("EXPRESS_BOTX_HOST", "env.com")
+	t.Setenv("EXPRESS_BOTX_BOT_ID", "env-bot")
+	t.Setenv("EXPRESS_BOTX_SECRET", "env-secret")
 
 	cfg, err := LoadForServe(Flags{ConfigPath: cfgPath})
 	if err != nil {
@@ -751,7 +751,7 @@ bots:
 	}
 
 	// Only partial env — should stay multi-bot
-	t.Setenv("EXPRESS_HOST", "env.com")
+	t.Setenv("EXPRESS_BOTX_HOST", "env.com")
 
 	cfg, err := LoadForServe(Flags{ConfigPath: cfgPath})
 	if err != nil {
@@ -783,7 +783,7 @@ func TestBotNames(t *testing.T) {
 }
 
 func TestLoad_EnvCacheType(t *testing.T) {
-	t.Setenv("EXPRESS_CACHE_TYPE", "file")
+	t.Setenv("EXPRESS_BOTX_CACHE_TYPE", "file")
 
 	cfg, err := Load(Flags{Host: "h", BotID: "b", Secret: "s"})
 	if err != nil {

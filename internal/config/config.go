@@ -147,13 +147,13 @@ func Load(flags Flags) (*Config, error) {
 
 	// Validate required fields
 	if cfg.Host == "" {
-		return nil, fmt.Errorf("host is required (--host, EXPRESS_HOST, or config file)")
+		return nil, fmt.Errorf("host is required (--host, EXPRESS_BOTX_HOST, or config file)")
 	}
 	if cfg.BotID == "" {
-		return nil, fmt.Errorf("bot id is required (--bot-uuid, EXPRESS_BOT_ID, or config file)")
+		return nil, fmt.Errorf("bot id is required (--bot-uuid, EXPRESS_BOTX_BOT_ID, or config file)")
 	}
 	if cfg.BotSecret == "" {
-		return nil, fmt.Errorf("bot secret is required (--secret, EXPRESS_SECRET, or config file)")
+		return nil, fmt.Errorf("bot secret is required (--secret, EXPRESS_BOTX_SECRET, or config file)")
 	}
 
 	return cfg, nil
@@ -217,13 +217,13 @@ func LoadForServe(flags Flags) (*Config, error) {
 	// Validate required fields only in single-bot mode
 	if !cfg.multiBot {
 		if cfg.Host == "" {
-			return nil, fmt.Errorf("host is required (--host, EXPRESS_HOST, or config file)")
+			return nil, fmt.Errorf("host is required (--host, EXPRESS_BOTX_HOST, or config file)")
 		}
 		if cfg.BotID == "" {
-			return nil, fmt.Errorf("bot id is required (--bot-uuid, EXPRESS_BOT_ID, or config file)")
+			return nil, fmt.Errorf("bot id is required (--bot-uuid, EXPRESS_BOTX_BOT_ID, or config file)")
 		}
 		if cfg.BotSecret == "" {
-			return nil, fmt.Errorf("bot secret is required (--secret, EXPRESS_SECRET, or config file)")
+			return nil, fmt.Errorf("bot secret is required (--secret, EXPRESS_BOTX_SECRET, or config file)")
 		}
 	}
 
@@ -446,28 +446,28 @@ func findConfigFile() string {
 }
 
 func applyEnv(cfg *Config) {
-	if v := os.Getenv("EXPRESS_HOST"); v != "" {
+	if v := os.Getenv("EXPRESS_BOTX_HOST"); v != "" {
 		cfg.Host = v
 	}
-	if v := os.Getenv("EXPRESS_BOT_ID"); v != "" {
+	if v := os.Getenv("EXPRESS_BOTX_BOT_ID"); v != "" {
 		cfg.BotID = v
 	}
-	if v := os.Getenv("EXPRESS_SECRET"); v != "" {
+	if v := os.Getenv("EXPRESS_BOTX_SECRET"); v != "" {
 		cfg.BotSecret = v
 	}
-	if v := os.Getenv("EXPRESS_CACHE_TYPE"); v != "" {
+	if v := os.Getenv("EXPRESS_BOTX_CACHE_TYPE"); v != "" {
 		cfg.Cache.Type = v
 	}
-	if v := os.Getenv("EXPRESS_CACHE_FILE_PATH"); v != "" {
+	if v := os.Getenv("EXPRESS_BOTX_CACHE_FILE_PATH"); v != "" {
 		cfg.Cache.FilePath = v
 	}
-	if v := os.Getenv("EXPRESS_CACHE_VAULT_URL"); v != "" {
+	if v := os.Getenv("EXPRESS_BOTX_CACHE_VAULT_URL"); v != "" {
 		cfg.Cache.VaultURL = v
 	}
-	if v := os.Getenv("EXPRESS_CACHE_VAULT_PATH"); v != "" {
+	if v := os.Getenv("EXPRESS_BOTX_CACHE_VAULT_PATH"); v != "" {
 		cfg.Cache.VaultPath = v
 	}
-	if v := os.Getenv("EXPRESS_CACHE_TTL"); v != "" {
+	if v := os.Getenv("EXPRESS_BOTX_CACHE_TTL"); v != "" {
 		if ttl, err := strconv.Atoi(v); err == nil {
 			cfg.Cache.TTL = ttl
 		}

@@ -64,10 +64,10 @@ Options:
 	}
 
 	// Env overrides
-	if v := os.Getenv("EXPRESS_SERVER_LISTEN"); v != "" {
+	if v := os.Getenv("EXPRESS_BOTX_SERVER_LISTEN"); v != "" {
 		srvCfg.Listen = v
 	}
-	if v := os.Getenv("EXPRESS_SERVER_BASE_PATH"); v != "" {
+	if v := os.Getenv("EXPRESS_BOTX_SERVER_BASE_PATH"); v != "" {
 		srvCfg.BasePath = v
 	}
 
@@ -106,10 +106,10 @@ Options:
 	}
 
 	// Env single key
-	if v := os.Getenv("EXPRESS_SERVER_API_KEY"); v != "" {
+	if v := os.Getenv("EXPRESS_BOTX_SERVER_API_KEY"); v != "" {
 		resolved, err := secret.Resolve(v)
 		if err != nil {
-			return fmt.Errorf("resolving EXPRESS_SERVER_API_KEY: %w", err)
+			return fmt.Errorf("resolving EXPRESS_BOTX_SERVER_API_KEY: %w", err)
 		}
 		keys = append(keys, server.ResolvedKey{Name: "env", Key: resolved})
 	}
@@ -138,7 +138,7 @@ Options:
 	}
 
 	if len(keys) == 0 && !srvCfg.AllowBotSecretAuth {
-		return fmt.Errorf("no API keys configured: use --api-key, EXPRESS_SERVER_API_KEY, server.api_keys, or server.allow_bot_secret_auth in config")
+		return fmt.Errorf("no API keys configured: use --api-key, EXPRESS_BOTX_SERVER_API_KEY, server.api_keys, or server.allow_bot_secret_auth in config")
 	}
 	srvCfg.Keys = keys
 
