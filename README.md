@@ -46,6 +46,56 @@ cd express-botx
 go build -o express-botx .
 ```
 
+### Helm
+
+```bash
+helm install express-botx oci://ghcr.io/lavr/charts/express-botx
+```
+
+Или из исходников:
+
+```bash
+helm install express-botx ./charts/express-botx -f my-values.yaml
+```
+
+Минимальный `values.yaml`:
+
+```yaml
+config:
+  bots:
+    prod:
+      host: express.company.ru
+      id: "bot-uuid"
+      secret: "bot-secret"
+  chats:
+    ops-alerts: "chat-uuid"
+  server:
+    listen: ":8080"
+    base_path: /api/v1
+    api_keys:
+      - name: monitoring
+        key: "api-key"
+    alertmanager:
+      default_chat_id: ops-alerts
+    grafana:
+      default_chat_id: ops-alerts
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: express-botx.company.ru
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - express-botx.company.ru
+      secretName: express-botx-tls
+```
+
+Конфиг монтируется из Kubernetes Secret (не ConfigMap), т.к. содержит bot secret и API-ключи. Для использования существующего секрета: `existingSecret: my-secret`.
+
 ## Команды
 
 | Команда | Описание |
