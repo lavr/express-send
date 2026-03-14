@@ -372,14 +372,14 @@ func newBotSender(cfg *config.Config, failFast bool) (*botSender, error) {
 		if failFast {
 			return nil, fmt.Errorf("authenticating bot %s: %w", name, err)
 		}
-		vlog.V1("serve: bot %s auth failed, will retry in background: %v", name, err)
+		vlog.Info("serve: bot %s auth failed, will retry in background: %v", name, err)
 		bs.client = botapi.NewClient(cfg.Host, "")
 		go bs.retryAuth()
 	} else {
 		bs.client = botapi.NewClient(cfg.Host, tok)
 		bs.ready = true
 		close(bs.done)
-		vlog.V1("serve: bot %s authenticated", name)
+		vlog.Info("serve: bot %s authenticated", name)
 	}
 
 	return bs, nil
@@ -396,7 +396,7 @@ func (bs *botSender) retryAuth() {
 		vlog.V2("serve: retrying auth for bot %s", name)
 		tok, cache, err := authenticate(bs.cfg)
 		if err != nil {
-			vlog.V1("serve: bot %s auth retry failed: %v", name, err)
+			vlog.Info("serve: bot %s auth retry failed: %v", name, err)
 			continue
 		}
 		bs.mu.Lock()
@@ -405,7 +405,7 @@ func (bs *botSender) retryAuth() {
 		bs.ready = true
 		bs.mu.Unlock()
 		close(bs.done)
-		vlog.V1("serve: bot %s authenticated", name)
+		vlog.Info("serve: bot %s authenticated", name)
 		return
 	}
 }

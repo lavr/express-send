@@ -16,6 +16,11 @@ func V(level int, format string, args ...any) {
 	}
 }
 
+// Info logs unconditionally to stderr. Use for startup, shutdown, and critical events.
+func Info(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, format+"\n", args...)
+}
+
 // V1 logs at verbose level (key steps).
 func V1(format string, args ...any) { V(1, format, args...) }
 

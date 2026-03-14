@@ -109,7 +109,7 @@ func New(cfg Config, sendFn SendFunc, chatResolver ChatResolver, opts ...Option)
 		mux.HandleFunc("GET /docs", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/docs/", http.StatusMovedPermanently)
 		})
-		vlog.V1("server: docs endpoint enabled at /docs/")
+		vlog.Info("server: docs endpoint enabled at /docs/")
 	}
 
 	route("POST", "/send", s.handleSend)
@@ -123,7 +123,7 @@ func New(cfg Config, sendFn SendFunc, chatResolver ChatResolver, opts ...Option)
 		if chatInfo == "" {
 			chatInfo = "from ?chat_id param"
 		}
-		vlog.V1("server: alertmanager endpoint enabled (chat: %s)", chatInfo)
+		vlog.Info("server: alertmanager endpoint enabled (chat: %s)", chatInfo)
 	}
 
 	if s.grCfg != nil {
@@ -135,7 +135,7 @@ func New(cfg Config, sendFn SendFunc, chatResolver ChatResolver, opts ...Option)
 		if chatInfo == "" {
 			chatInfo = "from ?chat_id param"
 		}
-		vlog.V1("server: grafana endpoint enabled (chat: %s)", chatInfo)
+		vlog.Info("server: grafana endpoint enabled (chat: %s)", chatInfo)
 	}
 
 	s.srv = &http.Server{
@@ -182,9 +182,9 @@ func (s *Server) resolveRequestBot(ctx context.Context, bot string) (string, str
 func (s *Server) Run(ctx context.Context) error {
 	errCh := make(chan error, 1)
 	go func() {
-		vlog.V1("server: listening on %s (base_path: %s)", s.cfg.Listen, s.cfg.BasePath)
+		vlog.Info("server: listening on %s (base_path: %s)", s.cfg.Listen, s.cfg.BasePath)
 		if len(s.keyMap) > 0 {
-			vlog.V1("server: %d API keys loaded", len(s.keyMap))
+			vlog.Info("server: %d API keys loaded", len(s.keyMap))
 		}
 		if err := s.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errCh <- err
@@ -200,7 +200,7 @@ func (s *Server) Run(ctx context.Context) error {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	vlog.V1("server: shutting down...")
+	vlog.Info("server: shutting down...")
 	return s.srv.Shutdown(shutdownCtx)
 }
 
