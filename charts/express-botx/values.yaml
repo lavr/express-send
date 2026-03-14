@@ -12,22 +12,16 @@ fullnameOverride: ""
 # Config is mounted from a Secret into /etc/express-botx/config.yaml.
 # It contains secrets (bot secret, API keys), so it uses Secret, not ConfigMap.
 config:
-  bots:
-    prod:
-      host: express.example.com
-      id: "bot-uuid-here"
-      secret: "bot-secret-here"
-    # staging:
-    #   host: express-staging.example.com
-    #   id: "staging-bot-uuid"
-    #   secret: "staging-bot-secret"
-  chats:
-    deploy: "chat-uuid-here"
+  bots: {}
+    # prod:
+    #   host: express.example.com
+    #   id: "bot-uuid-here"
+    #   secret: "bot-secret-here"
+  chats: {}
+    # deploy: "chat-uuid-here"
     # alerts: "alerts-chat-uuid"
-    # monitoring: "monitoring-chat-uuid"
   cache:
     type: file
-    ttl: 3600
   server:
     listen: ":8080"
     base_path: /api/v1
@@ -53,11 +47,11 @@ ingress:
   enabled: false
   className: ""
   annotations: {}
-  hosts:
-    - host: express-botx.example.com
-      paths:
-        - path: /
-          pathType: Prefix
+  hosts: []
+    # - host: express-botx.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
   tls: []
 
 resources:
@@ -84,7 +78,9 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 
-extraEnv: []
+extraEnv:
+  - name: EXPRESS_BOTX_VERBOSE
+    value: "1"
 #  - name: VAULT_TOKEN
 #    valueFrom:
 #      secretKeyRef:
