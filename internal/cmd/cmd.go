@@ -81,7 +81,7 @@ func Run(args []string, deps Deps) error {
 
 // globalFlags registers flags common to all subcommands.
 func globalFlags(fs *flag.FlagSet, flags *config.Flags) {
-	fs.StringVar(&flags.ConfigPath, "config", "", "path to config file (default: ~/.config/express-send/config.yaml)")
+	fs.StringVar(&flags.ConfigPath, "config", "", "path to config file (auto: ./express-botx.yaml, then <os.UserConfigDir>/express-botx/config.yaml)")
 	fs.StringVar(&flags.Bot, "bot", "", "bot name from config")
 	fs.StringVar(&flags.Host, "host", "", "eXpress server host")
 	fs.StringVar(&flags.BotID, "bot-id", "", "bot ID (UUID)")
