@@ -133,7 +133,7 @@ express-botx config chat add \
 
 ### CLI
 
-Когда чатов несколько, `--chat-id` обязателен:
+Когда чатов несколько, `--chat-id` обязателен (если не прописан default chat)
 
 ```bash
 express-botx send --chat-id alerts "Проблема на проде" --status error
@@ -154,7 +154,7 @@ curl -X POST http://localhost:8080/api/v1/send \
   }'
 ```
 
-Для alertmanager и grafana чат указывается через query-параметр `?chat_id=`:
+Для alertmanager и grafana чат можно указать через query-параметр `?chat_id=`:
 
 ```bash
 # Алерты в чат alerts
@@ -169,6 +169,8 @@ curl -X POST "http://localhost:8080/api/v1/grafana?chat_id=deploy" \
   -H "Content-Type: application/json" \
   -d '{...}'
 ```
+
+Но если в конфиге прописаны `sever.alertmanager.default_chat_id` / `sever.grafana.default_chat_id` - тогда параметр chat_id в них можно не указывать.
 
 ---
 
