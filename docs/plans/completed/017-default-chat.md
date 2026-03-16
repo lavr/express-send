@@ -1,6 +1,6 @@
 # RFC-017: Чат по умолчанию (default chat)
 
-- **Статус:** Draft
+- **Статус:** Done
 - **Дата:** 2026-03-16
 
 ## Контекст
@@ -289,39 +289,39 @@ curl /api/v1/alertmanager  # → alerts (из default_chat_id в конфиге 
 
 ### Шаг 1. Модель данных — `internal/config/config.go`
 
-1. Добавить поле `Default bool` в `ChatConfig`
-2. Обновить `MarshalYAML` — использовать объектную форму если `Default == true`
-3. Реализовать `ValidateDefaultChat()` — не более одного default
-4. Реализовать `DefaultChat()` — возвращает alias и конфиг default-чата
-5. Обновить `RequireChatIDWithBot()` — в ветке `default` (несколько чатов) перед ошибкой проверять `DefaultChat()`
+- [x] Добавить поле `Default bool` в `ChatConfig`
+- [x] Обновить `MarshalYAML` — использовать объектную форму если `Default == true`
+- [x] Реализовать `ValidateDefaultChat()` — не более одного default
+- [x] Реализовать `DefaultChat()` — возвращает alias и конфиг default-чата
+- [x] Обновить `RequireChatIDWithBot()` — в ветке `default` (несколько чатов) перед ошибкой проверять `DefaultChat()`
 
 ### Шаг 2. Валидация при загрузке — `internal/config/config.go`
 
-1. В `Load()` (CLI) — вызвать `ValidateDefaultChat()` после `ValidateChatBots(true)`
-2. В `LoadForServe()` — вызвать `ValidateDefaultChat()` после `ValidateChatBots(strict)`
+- [x] В `Load()` (CLI) — вызвать `ValidateDefaultChat()` после `ValidateChatBots(true)`
+- [x] В `LoadForServe()` — вызвать `ValidateDefaultChat()` после `ValidateChatBots(strict)`
 
 ### Шаг 3. HTTP `/send` — `internal/server/handler_send.go`
 
-1. Сделать `chat_id` в запросе необязательным
-2. Если `chat_id` пустой — попробовать `DefaultChat()`, иначе ошибка 400
+- [x] Сделать `chat_id` в запросе необязательным
+- [x] Если `chat_id` пустой — попробовать `DefaultChat()`, иначе ошибка 400
 
 ### Шаг 4. Alertmanager/Grafana fallback — `internal/server/handler_alertmanager.go`, `handler_grafana.go`
 
-1. Расширить fallback-цепочку: после `default_chat_id` и перед `FallbackChatID` — попробовать `DefaultChat()`
+- [x] Расширить fallback-цепочку: после `default_chat_id` и перед `FallbackChatID` — попробовать `DefaultChat()`
 
 ### Шаг 5. CLI команды — `internal/cmd/config_chats.go`
 
-1. `config chats add` — добавить флаг `--default`, проверка на конфликт с существующим default
-2. `config chats list` — отображать метку `(default)`
+- [x] `config chats add` — добавить флаг `--default`, проверка на конфликт с существующим default
+- [x] `config chats list` — отображать метку `(default)`
 
 ### Шаг 6. Тесты — `internal/config/config_test.go`
 
-1. YAML парсинг: `default: true` в объектной форме
-2. YAML сериализация: объектная форма при `Default == true`
-3. `ValidateDefaultChat()`: 0 default — OK, 1 — OK, 2 — ошибка
-4. `DefaultChat()`: возвращает правильный чат / пустой при отсутствии
-5. `RequireChatIDWithBot()`: несколько чатов + default → авто-выбор
-6. `RequireChatIDWithBot()`: несколько чатов без default → ошибка (регрессия)
+- [x] YAML парсинг: `default: true` в объектной форме
+- [x] YAML сериализация: объектная форма при `Default == true`
+- [x] `ValidateDefaultChat()`: 0 default — OK, 1 — OK, 2 — ошибка
+- [x] `DefaultChat()`: возвращает правильный чат / пустой при отсутствии
+- [x] `RequireChatIDWithBot()`: несколько чатов + default → авто-выбор
+- [x] `RequireChatIDWithBot()`: несколько чатов без default → ошибка (регрессия)
 
 ## Приоритизация
 
