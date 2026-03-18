@@ -1552,3 +1552,411 @@ chats:
 		t.Errorf("unexpected error: %v", err)
 	}
 }
+
+// --- ValidateRoutingMode ---
+
+func TestValidateRoutingMode(t *testing.T) {
+	tests := []struct {
+		mode string
+		ok   bool
+	}{
+		{"direct", true},
+		{"catalog", true},
+		{"mixed", true},
+		{"unknown", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		err := ValidateRoutingMode(tt.mode)
+		if tt.ok && err != nil {
+			t.Errorf("ValidateRoutingMode(%q) = %v, want nil", tt.mode, err)
+		}
+		if !tt.ok && err == nil {
+			t.Errorf("ValidateRoutingMode(%q) = nil, want error", tt.mode)
+		}
+	}
+}
+
+// --- LoadForEnqueue ---
+
+func TestLoadForEnqueue_MinimalConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+queue:
+  driver: rabbitmq
+  url: amqp://localhost
+  name: express-botx
+`
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	cfg, err := LoadForEnqueue(Flags{ConfigPath: cfgPath})
+	if err != nil {
+		t.Fatalf("LoadForEnqueue() error: %v", err)
+	}
+	if cfg.Queue.Driver != "rabbitmq" {
+		t.Errorf("Queue.Driver = %q, want %q", cfg.Queue.Driver, "rabbitmq")
+	}
+	if cfg.Producer.RoutingMode != "mixed" {
+		t.Errorf("Producer.RoutingMode = %q, want %q (default)", cfg.Producer.RoutingMode, "mixed")
+	}
+}
+
+func TestLoadForEnqueue_NoDriver_Error(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+queue:
+  url: amqp://localhost
+`
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	_, err := LoadForEnqueue(Flags{ConfigPath: cfgPath})
+	if err == nil {
+		t.Fatal("expected error for missing queue driver")
+	}
+	if !strings.Contains(err.Error(), "queue driver is required") {
+		t.Errorf("error = %q, should mention queue driver", err.Error())
+	}
+}
+
+func TestLoadForEnqueue_InvalidRoutingMode(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+queue:
+  driver: kafka
+  url: broker:9092
+producer:
+  routing_mode: invalid
+`
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	_, err := LoadForEnqueue(Flags{ConfigPath: cfgPath})
+	if err == nil {
+		t.Fatal("expected error for invalid routing mode")
+	}
+	if !strings.Contains(err.Error(), "invalid routing mode") {
+		t.Errorf("error = %q, should mention invalid routing mode", err.Error())
+	}
+}
+
+func TestLoadForEnqueue_DirectMode(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+queue:
+  driver: kafka
+  url: broker:9092
+  name: express-botx
+producer:
+  routing_mode: direct
+`
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	cfg, err := LoadForEnqueue(Flags{ConfigPath: cfgPath})
+	if err != nil {
+		t.Fatalf("LoadForEnqueue() error: %v", err)
+	}
+	if cfg.Producer.RoutingMode != "direct" {
+		t.Errorf("Producer.RoutingMode = %q, want %q", cfg.Producer.RoutingMode, "direct")
+	}
+}
+
+func TestLoadForEnqueue_NoSecretRequired(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+queue:
+  driver: rabbitmq
+  url: amqp://localhost
+  name: express-botx
+`
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	// Should succeed without any bot credentials
+	_, err := LoadForEnqueue(Flags{ConfigPath: cfgPath})
+	if err != nil {
+		t.Fatalf("LoadForEnqueue() should not require credentials: %v", err)
+	}
+}
+
+// --- LoadForWorker ---
+
+func TestLoadForWorker_MinimalConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+queue:
+  driver: kafka
+  url: broker:9092
+  name: express-botx
+bots:
+  alerts:
+    host: express.company.ru
+    id: bot-uuid
+    secret: my-secret
+`
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	cfg, err := LoadForWorker(Flags{ConfigPath: cfgPath})
+	if err != nil {
+		t.Fatalf("LoadForWorker() error: %v", err)
+	}
+	if cfg.Queue.Driver != "kafka" {
+		t.Errorf("Queue.Driver = %q, want %q", cfg.Queue.Driver, "kafka")
+	}
+	if len(cfg.Bots) != 1 {
+		t.Errorf("expected 1 bot, got %d", len(cfg.Bots))
+	}
+}
+
+func TestLoadForWorker_NoDriver_Error(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+bots:
+  alerts:
+    host: h
+    id: b
+    secret: s
+`
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	_, err := LoadForWorker(Flags{ConfigPath: cfgPath})
+	if err == nil {
+		t.Fatal("expected error for missing queue driver")
+	}
+	if !strings.Contains(err.Error(), "queue driver is required") {
+		t.Errorf("error = %q", err.Error())
+	}
+}
+
+func TestLoadForWorker_NoBots_Error(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+queue:
+  driver: rabbitmq
+  url: amqp://localhost
+  name: express-botx
+`
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	_, err := LoadForWorker(Flags{ConfigPath: cfgPath})
+	if err == nil {
+		t.Fatal("expected error for no bots")
+	}
+	if !strings.Contains(err.Error(), "at least one bot is required") {
+		t.Errorf("error = %q", err.Error())
+	}
+}
+
+// --- ValidateBotIDs ---
+
+func TestValidateBotIDs_UniqueIDs(t *testing.T) {
+	cfg := &Config{
+		Bots: map[string]BotConfig{
+			"a": {Host: "h1", ID: "id-1", Secret: "s1"},
+			"b": {Host: "h2", ID: "id-2", Secret: "s2"},
+		},
+	}
+	if err := cfg.ValidateBotIDs(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateBotIDs_SameID_SameConfig_OK(t *testing.T) {
+	cfg := &Config{
+		Bots: map[string]BotConfig{
+			"alerts":   {Host: "express.com", ID: "shared-id", Secret: "shared-secret"},
+			"warnings": {Host: "express.com", ID: "shared-id", Secret: "shared-secret"},
+		},
+	}
+	if err := cfg.ValidateBotIDs(); err != nil {
+		t.Fatalf("expected success for same bot_id with identical config, got: %v", err)
+	}
+}
+
+func TestValidateBotIDs_SameID_DifferentSecret_Error(t *testing.T) {
+	cfg := &Config{
+		Bots: map[string]BotConfig{
+			"a": {Host: "h", ID: "shared-id", Secret: "secret-1"},
+			"b": {Host: "h", ID: "shared-id", Secret: "secret-2"},
+		},
+	}
+	err := cfg.ValidateBotIDs()
+	if err == nil {
+		t.Fatal("expected error for same bot_id with different secret")
+	}
+	if !strings.Contains(err.Error(), "different secret") {
+		t.Errorf("error = %q, should mention different secret", err.Error())
+	}
+}
+
+func TestValidateBotIDs_SameID_DifferentHost_Error(t *testing.T) {
+	cfg := &Config{
+		Bots: map[string]BotConfig{
+			"a": {Host: "host1.com", ID: "shared-id", Secret: "s"},
+			"b": {Host: "host2.com", ID: "shared-id", Secret: "s"},
+		},
+	}
+	err := cfg.ValidateBotIDs()
+	if err == nil {
+		t.Fatal("expected error for same bot_id with different host")
+	}
+	if !strings.Contains(err.Error(), "different host") {
+		t.Errorf("error = %q, should mention different host", err.Error())
+	}
+}
+
+// --- BotByID ---
+
+func TestBotByID_Found(t *testing.T) {
+	cfg := &Config{
+		Bots: map[string]BotConfig{
+			"alerts": {Host: "h", ID: "bot-uuid", Secret: "s"},
+			"other":  {Host: "h2", ID: "other-uuid", Secret: "s2"},
+		},
+	}
+	name, bot, err := cfg.BotByID("bot-uuid")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if name != "alerts" {
+		t.Errorf("name = %q, want %q", name, "alerts")
+	}
+	if bot.Host != "h" {
+		t.Errorf("bot.Host = %q, want %q", bot.Host, "h")
+	}
+}
+
+func TestBotByID_NotFound(t *testing.T) {
+	cfg := &Config{
+		Bots: map[string]BotConfig{
+			"alerts": {Host: "h", ID: "bot-uuid", Secret: "s"},
+		},
+	}
+	_, _, err := cfg.BotByID("nonexistent-uuid")
+	if err == nil {
+		t.Fatal("expected error for unknown bot_id")
+	}
+	if !strings.Contains(err.Error(), "unknown bot_id") {
+		t.Errorf("error = %q, should mention unknown bot_id", err.Error())
+	}
+}
+
+func TestBotByID_DuplicateAliases_ReturnsOne(t *testing.T) {
+	cfg := &Config{
+		Bots: map[string]BotConfig{
+			"alias1": {Host: "h", ID: "shared-id", Secret: "s"},
+			"alias2": {Host: "h", ID: "shared-id", Secret: "s"},
+		},
+	}
+	name, _, err := cfg.BotByID("shared-id")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Should return one of the aliases
+	if name != "alias1" && name != "alias2" {
+		t.Errorf("name = %q, expected alias1 or alias2", name)
+	}
+}
+
+// --- Queue/Worker/Catalog config parsing ---
+
+func TestLoad_QueueConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+bots:
+  main:
+    host: h
+    id: b
+    secret: s
+queue:
+  driver: kafka
+  url: broker:9092
+  name: express-botx
+  reply_queue: express-botx-replies
+  group: my-group
+  max_file_size: 2MB
+worker:
+  retry_count: 3
+  retry_backoff: 1s
+  shutdown_timeout: 30s
+  health_listen: ":8081"
+catalog:
+  queue_name: express-botx-catalog
+  cache_file: /var/lib/catalog.json
+  max_age: 10m
+  publish_interval: 30s
+`
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	cfg, err := Load(Flags{ConfigPath: cfgPath})
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if cfg.Queue.Driver != "kafka" {
+		t.Errorf("Queue.Driver = %q, want %q", cfg.Queue.Driver, "kafka")
+	}
+	if cfg.Queue.URL != "broker:9092" {
+		t.Errorf("Queue.URL = %q, want %q", cfg.Queue.URL, "broker:9092")
+	}
+	if cfg.Queue.Name != "express-botx" {
+		t.Errorf("Queue.Name = %q, want %q", cfg.Queue.Name, "express-botx")
+	}
+	if cfg.Queue.ReplyQueue != "express-botx-replies" {
+		t.Errorf("Queue.ReplyQueue = %q, want %q", cfg.Queue.ReplyQueue, "express-botx-replies")
+	}
+	if cfg.Queue.Group != "my-group" {
+		t.Errorf("Queue.Group = %q, want %q", cfg.Queue.Group, "my-group")
+	}
+	if cfg.Queue.MaxFileSize != "2MB" {
+		t.Errorf("Queue.MaxFileSize = %q, want %q", cfg.Queue.MaxFileSize, "2MB")
+	}
+	if cfg.Worker.RetryCount != 3 {
+		t.Errorf("Worker.RetryCount = %d, want 3", cfg.Worker.RetryCount)
+	}
+	if cfg.Worker.RetryBackoff != "1s" {
+		t.Errorf("Worker.RetryBackoff = %q, want %q", cfg.Worker.RetryBackoff, "1s")
+	}
+	if cfg.Worker.ShutdownTimeout != "30s" {
+		t.Errorf("Worker.ShutdownTimeout = %q, want %q", cfg.Worker.ShutdownTimeout, "30s")
+	}
+	if cfg.Worker.HealthListen != ":8081" {
+		t.Errorf("Worker.HealthListen = %q, want %q", cfg.Worker.HealthListen, ":8081")
+	}
+	if cfg.Catalog.QueueName != "express-botx-catalog" {
+		t.Errorf("Catalog.QueueName = %q, want %q", cfg.Catalog.QueueName, "express-botx-catalog")
+	}
+	if cfg.Catalog.CacheFile != "/var/lib/catalog.json" {
+		t.Errorf("Catalog.CacheFile = %q, want %q", cfg.Catalog.CacheFile, "/var/lib/catalog.json")
+	}
+	if cfg.Catalog.MaxAge != "10m" {
+		t.Errorf("Catalog.MaxAge = %q, want %q", cfg.Catalog.MaxAge, "10m")
+	}
+	if cfg.Catalog.PublishInterval != "30s" {
+		t.Errorf("Catalog.PublishInterval = %q, want %q", cfg.Catalog.PublishInterval, "30s")
+	}
+}
+
+// --- Chat bot binding with duplicate bot_id aliases ---
+
+func TestValidateChatBots_WithDuplicateBotIDAlias(t *testing.T) {
+	cfg := &Config{
+		Bots: map[string]BotConfig{
+			"alerts":   {Host: "h", ID: "shared", Secret: "s"},
+			"warnings": {Host: "h", ID: "shared", Secret: "s"},
+		},
+		Chats: map[string]ChatConfig{
+			"deploy": {ID: "uuid", Bot: "warnings"},
+		},
+	}
+	// chats.*.bot can reference any alias, even when aliases share bot_id
+	if err := cfg.ValidateChatBots(true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
