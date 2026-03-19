@@ -11,6 +11,7 @@ import (
 	"time"
 
 	vlog "github.com/lavr/express-botx/internal/log"
+	"github.com/lavr/express-botx/internal/secret"
 	"gopkg.in/yaml.v3"
 )
 
@@ -204,6 +205,11 @@ func Load(flags Flags) (*Config, error) {
 		}
 	}
 
+	// Resolve env:/vault: references in bot and chat configs
+	if err := cfg.resolveSecrets(); err != nil {
+		return nil, err
+	}
+
 	// Validate: no bot has both secret and token in YAML
 	if err := cfg.validateBotConfigs(); err != nil {
 		return nil, err
@@ -290,6 +296,11 @@ func LoadForServe(flags Flags) (*Config, error) {
 		} else {
 			vlog.V2("config: %s not found, skipping", configPath)
 		}
+	}
+
+	// Resolve env:/vault: references in bot and chat configs
+	if err := cfg.resolveSecrets(); err != nil {
+		return nil, err
 	}
 
 	// Validate: no bot has both secret and token in YAML
@@ -946,6 +957,41 @@ func LoadForWorker(flags Flags) (*Config, error) {
 	return cfg, nil
 }
 
+// resolveSecrets resolves env:/vault: references in bot and chat config values.
+// This allows using "env:VAR" syntax for host, id, secret, and token fields.
+func (c *Config) resolveSecrets() error {
+	for name, bot := range c.Bots {
+		var err error
+		if bot.Host, err = secret.Resolve(bot.Host); err != nil {
+			return fmt.Errorf("bot %q host: %w", name, err)
+		}
+		if bot.ID, err = secret.Resolve(bot.ID); err != nil {
+			return fmt.Errorf("bot %q id: %w", name, err)
+		}
+		if bot.Secret != "" {
+			if bot.Secret, err = secret.Resolve(bot.Secret); err != nil {
+				return fmt.Errorf("bot %q secret: %w", name, err)
+			}
+		}
+		if bot.Token != "" {
+			if bot.Token, err = secret.Resolve(bot.Token); err != nil {
+				return fmt.Errorf("bot %q token: %w", name, err)
+			}
+		}
+		c.Bots[name] = bot
+	}
+	for name, chat := range c.Chats {
+		if chat.ID != "" {
+			var err error
+			if chat.ID, err = secret.Resolve(chat.ID); err != nil {
+				return fmt.Errorf("chat %q id: %w", name, err)
+			}
+			c.Chats[name] = chat
+		}
+	}
+	return nil
+}
+
 // loadBase performs the common config loading steps (YAML, validation, env, flags)
 // without bot resolution or credential requirements.
 func loadBase(flags Flags) (*Config, error) {
@@ -971,6 +1017,9 @@ func loadBase(flags Flags) (*Config, error) {
 		}
 	}
 
+	if err := cfg.resolveSecrets(); err != nil {
+		return nil, err
+	}
 	if err := cfg.validateBotConfigs(); err != nil {
 		return nil, err
 	}

@@ -5,6 +5,7 @@ package kafka
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -34,13 +35,18 @@ type publisher struct {
 func newPublisher(url, topicName string) (queue.Publisher, error) {
 	brokers := strings.Split(url, ",")
 
+	if topicName != "" {
+		ensureTopics(brokers, topicName)
+	}
+
 	w := &kafkago.Writer{
-		Addr:         kafkago.TCP(brokers...),
-		Topic:        topicName,
-		Balancer:     &kafkago.LeastBytes{},
-		RequiredAcks: kafkago.RequireAll,
-		MaxAttempts:  3,
-		WriteTimeout: publishTimeout,
+		Addr:                   kafkago.TCP(brokers...),
+		Topic:                  topicName,
+		Balancer:               &kafkago.LeastBytes{},
+		RequiredAcks:           kafkago.RequireAll,
+		MaxAttempts:            3,
+		WriteTimeout:           publishTimeout,
+		AllowAutoTopicCreation: true,
 	}
 
 	return &publisher{workWriter: w, brokers: brokers, writers: make(map[string]*kafkago.Writer)}, nil
@@ -93,13 +99,15 @@ func (p *publisher) getOrCreateWriter(topic string) *kafkago.Writer {
 	if w, ok := p.writers[topic]; ok {
 		return w
 	}
+	ensureTopics(p.brokers, topic)
 	w := &kafkago.Writer{
-		Addr:         kafkago.TCP(p.brokers...),
-		Topic:        topic,
-		Balancer:     &kafkago.LeastBytes{},
-		RequiredAcks: kafkago.RequireAll,
-		MaxAttempts:  3,
-		WriteTimeout: publishTimeout,
+		Addr:                   kafkago.TCP(p.brokers...),
+		Topic:                  topic,
+		Balancer:               &kafkago.LeastBytes{},
+		RequiredAcks:           kafkago.RequireAll,
+		MaxAttempts:            3,
+		WriteTimeout:           publishTimeout,
+		AllowAutoTopicCreation: true,
 	}
 	p.writers[topic] = w
 	return w
@@ -137,18 +145,30 @@ func newConsumer(url, topicName, group string) (queue.Consumer, error) {
 	if group == "" {
 		group = topicName
 	}
+
+	if topicName != "" {
+		ensureTopics(brokers, topicName)
+	}
+
 	return &consumer{brokers: brokers, workTopic: topicName, group: group}, nil
 }
 
 func (c *consumer) ConsumeWork(ctx context.Context, handler func(context.Context, *queue.WorkMessage) error) error {
 	r := kafkago.NewReader(kafkago.ReaderConfig{
-		Brokers:        c.brokers,
-		Topic:          c.workTopic,
-		GroupID:        c.group,
-		MinBytes:       1,
-		MaxBytes:       10 * 1024 * 1024, // 10 MB
-		CommitInterval: 0,                // manual commit
-		MaxWait:        time.Second,
+		Brokers:  c.brokers,
+		Topic:    c.workTopic,
+		GroupID:  c.group,
+		MinBytes: 1,
+		MaxBytes: 10 * 1024 * 1024, // 10 MB
+		Dialer: &kafkago.Dialer{
+			Timeout:   10 * time.Second,
+			DualStack: true,
+		},
+		CommitInterval:   0, // manual commit
+		MaxWait:          time.Second,
+		StartOffset:      kafkago.FirstOffset,
+		SessionTimeout:   30 * time.Second,
+		RebalanceTimeout: 30 * time.Second,
 	})
 	c.trackReader(r)
 	defer r.Close()
@@ -272,6 +292,41 @@ func (c *consumer) Close() error {
 		}
 	}
 	return lastErr
+}
+
+// ensureTopics creates topics if they don't exist. Best-effort: logs errors
+// but does not fail, since the broker may create them automatically.
+func ensureTopics(brokers []string, topics ...string) {
+	client := &kafkago.Client{
+		Addr:    kafkago.TCP(brokers...),
+		Timeout: 10 * time.Second,
+	}
+
+	configs := make([]kafkago.TopicConfig, len(topics))
+	for i, t := range topics {
+		configs[i] = kafkago.TopicConfig{
+			Topic:             t,
+			NumPartitions:     1,
+			ReplicationFactor: 1,
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := client.CreateTopics(ctx, &kafkago.CreateTopicsRequest{
+		Addr:   kafkago.TCP(brokers...),
+		Topics: configs,
+	})
+	if err != nil {
+		vlog.V1("kafka: create topics: %v", err)
+		return
+	}
+	for topic, topicErr := range resp.Errors {
+		if topicErr != nil && !errors.Is(topicErr, kafkago.TopicAlreadyExists) {
+			vlog.V1("kafka: create topic %q: %v", topic, topicErr)
+		}
+	}
 }
 
 const publishTimeout = 10 * time.Second

@@ -1945,6 +1945,152 @@ catalog:
 
 // --- Chat bot binding with duplicate bot_id aliases ---
 
+// --- resolveSecrets ---
+
+func TestResolveSecrets_EnvInBotFields(t *testing.T) {
+	t.Setenv("TEST_BOT_HOST", "express.example.com")
+	t.Setenv("TEST_BOT_ID", "bot-uuid-123")
+	t.Setenv("TEST_BOT_TOKEN", "my-token")
+
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+bots:
+  mybot:
+    host: "env:TEST_BOT_HOST"
+    id: "env:TEST_BOT_ID"
+    token: "env:TEST_BOT_TOKEN"
+`
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	cfg, err := Load(Flags{ConfigPath: cfgPath})
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.Host != "express.example.com" {
+		t.Errorf("Host = %q, want %q", cfg.Host, "express.example.com")
+	}
+	if cfg.BotID != "bot-uuid-123" {
+		t.Errorf("BotID = %q, want %q", cfg.BotID, "bot-uuid-123")
+	}
+	if cfg.BotToken != "my-token" {
+		t.Errorf("BotToken = %q, want %q", cfg.BotToken, "my-token")
+	}
+}
+
+func TestResolveSecrets_EnvInChatID(t *testing.T) {
+	t.Setenv("TEST_CHAT_ID", "chat-uuid-456")
+
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+bots:
+  mybot:
+    host: h
+    id: b
+    secret: s
+chats:
+  alerts:
+    id: "env:TEST_CHAT_ID"
+    bot: mybot
+`
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	cfg, err := Load(Flags{ConfigPath: cfgPath})
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.Chats["alerts"].ID != "chat-uuid-456" {
+		t.Errorf("chat.ID = %q, want %q", cfg.Chats["alerts"].ID, "chat-uuid-456")
+	}
+}
+
+func TestResolveSecrets_EnvMissing_Error(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+bots:
+  mybot:
+    host: "env:NONEXISTENT_VAR_12345"
+    id: b
+    secret: s
+`
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	_, err := Load(Flags{ConfigPath: cfgPath})
+	if err == nil {
+		t.Fatal("expected error for missing env var")
+	}
+	if !strings.Contains(err.Error(), "NONEXISTENT_VAR_12345") {
+		t.Errorf("error = %q, should mention env var name", err.Error())
+	}
+}
+
+func TestResolveSecrets_LiteralValues_Unchanged(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+bots:
+  mybot:
+    host: literal-host.com
+    id: literal-id
+    secret: literal-secret
+chats:
+  deploy: literal-chat-id
+`
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	cfg, err := Load(Flags{ConfigPath: cfgPath})
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.Host != "literal-host.com" {
+		t.Errorf("Host = %q, want %q", cfg.Host, "literal-host.com")
+	}
+	if cfg.BotID != "literal-id" {
+		t.Errorf("BotID = %q, want %q", cfg.BotID, "literal-id")
+	}
+	if cfg.Chats["deploy"].ID != "literal-chat-id" {
+		t.Errorf("chat.ID = %q, want %q", cfg.Chats["deploy"].ID, "literal-chat-id")
+	}
+}
+
+func TestResolveSecrets_LoadForWorker_EnvFields(t *testing.T) {
+	t.Setenv("TEST_W_HOST", "worker-host.com")
+	t.Setenv("TEST_W_ID", "worker-bot-id")
+	t.Setenv("TEST_W_TOKEN", "worker-token")
+
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+queue:
+  driver: rabbitmq
+  url: amqp://localhost
+  name: work
+bots:
+  mybot:
+    host: "env:TEST_W_HOST"
+    id: "env:TEST_W_ID"
+    token: "env:TEST_W_TOKEN"
+`
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	cfg, err := LoadForWorker(Flags{ConfigPath: cfgPath})
+	if err != nil {
+		t.Fatalf("LoadForWorker() error: %v", err)
+	}
+	bot := cfg.Bots["mybot"]
+	if bot.Host != "worker-host.com" {
+		t.Errorf("bot.Host = %q, want %q", bot.Host, "worker-host.com")
+	}
+	if bot.ID != "worker-bot-id" {
+		t.Errorf("bot.ID = %q, want %q", bot.ID, "worker-bot-id")
+	}
+	if bot.Token != "worker-token" {
+		t.Errorf("bot.Token = %q, want %q", bot.Token, "worker-token")
+	}
+}
+
 func TestValidateChatBots_WithDuplicateBotIDAlias(t *testing.T) {
 	cfg := &Config{
 		Bots: map[string]BotConfig{
