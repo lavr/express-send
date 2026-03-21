@@ -116,12 +116,12 @@ The --all commands need to iterate bots and create a resolved Config per bot. Ad
 
 ### Task 7: Verify acceptance criteria
 
-- [ ] Run full test suite (`go test ./...`)
-- [ ] Run linter (`go vet ./...`)
-- [ ] Verify all five commands work with --all flag
-- [ ] Verify --all output in both text and json formats
-- [ ] Verify non-zero exit code on partial failure
-- [ ] Verify --all and --bot are mutually exclusive
+- [x] Run full test suite (`go test ./...`)
+- [x] Run linter (`go vet ./...`)
+- [x] Verify all five commands work with --all flag
+- [x] Verify --all output in both text and json formats
+- [x] Verify non-zero exit code on partial failure
+- [x] Verify --all and --bot are mutually exclusive
 
 ### Task 8: Update documentation
 
