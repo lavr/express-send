@@ -32,6 +32,7 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
+        runAsGroup: 65534
         fsGroup: 65534
       {{- if eq .Values.mode "worker" }}
       terminationGracePeriodSeconds: 35
