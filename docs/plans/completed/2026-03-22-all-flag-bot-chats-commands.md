@@ -44,14 +44,14 @@ The --all commands need to iterate bots and create a resolved Config per bot. Ad
 - Modify: `internal/cmd/bot.go`
 - Modify: `internal/cmd/cmd_test.go`
 
-- [ ] Add --all / -A bool flag to runBotInfo
-- [ ] When --all is set: use LoadMinimal to load config, iterate cfg.BotNames(), call cfg.ConfigForBot(name) for each, authenticate, collect botInfoResult per bot (with auth errors captured in AuthStatus field)
-- [ ] Text output: table with columns Name, Host, BotID, Cache, Auth
-- [ ] JSON output: array of botInfoResult objects
-- [ ] Return ErrSilent (or a multi-bot error) if any bot failed auth, so exit code is non-zero
-- [ ] Validate that --all is mutually exclusive with --bot, --host, --bot-id, --secret, --token flags
-- [ ] Write tests: multi-bot config with --all (text and json), --all with single bot, --all with --bot error, empty config with --all
-- [ ] Run project test suite - must pass before task 3
+- [x] Add --all / -A bool flag to runBotInfo
+- [x] When --all is set: use LoadMinimal to load config, iterate cfg.BotNames(), call cfg.ConfigForBot(name) for each, authenticate, collect botInfoResult per bot (with auth errors captured in AuthStatus field)
+- [x] Text output: table with columns Name, Host, BotID, Cache, Auth
+- [x] JSON output: array of botInfoResult objects
+- [x] Return ErrSilent (or a multi-bot error) if any bot failed auth, so exit code is non-zero
+- [x] Validate that --all is mutually exclusive with --bot, --host, --bot-id, --secret, --token flags
+- [x] Write tests: multi-bot config with --all (text and json), --all with single bot, --all with --bot error, empty config with --all
+- [x] Run project test suite - must pass before task 3
 
 ### Task 3: bot ping --all
 
