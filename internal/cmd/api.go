@@ -96,6 +96,9 @@ func buildAPIBody(p apiBodyParams) (*apiBody, error) {
 		if p.inputFile == "-" {
 			data, err = io.ReadAll(io.LimitReader(p.stdin, maxRequestBodySize+1))
 		} else {
+			if fi, statErr := os.Stat(p.inputFile); statErr == nil && fi.Size() > maxRequestBodySize {
+				return nil, fmt.Errorf("request body too large (max 50MB)")
+			}
 			data, err = os.ReadFile(p.inputFile)
 		}
 		if err != nil {
@@ -112,6 +115,9 @@ func buildAPIBody(p apiBodyParams) (*apiBody, error) {
 		filePath := p.inputFile[1:] // strip @ prefix
 		if filePath == "" {
 			return nil, fmt.Errorf("missing file path after @")
+		}
+		if fi, statErr := os.Stat(filePath); statErr == nil && fi.Size() > maxRequestBodySize {
+			return nil, fmt.Errorf("request body too large (max 50MB)")
 		}
 		fileData, err := os.ReadFile(filePath)
 		if err != nil {
@@ -202,6 +208,9 @@ func parseTypedValue(val string) (any, error) {
 	}
 	if strings.HasPrefix(val, "@") {
 		path := val[1:]
+		if path == "" {
+			return nil, fmt.Errorf("missing file path after @")
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, fmt.Errorf("reading file %q: %w", path, err)
