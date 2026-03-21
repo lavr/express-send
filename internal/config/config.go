@@ -1082,9 +1082,9 @@ func (c *Config) resolveSecrets(skipCredentials bool) error {
 		if bot.Host, err = secret.Resolve(bot.Host); err != nil {
 			if skipCredentials {
 				vlog.V1("config: bot %q host: %v (skipped, manual auth)", name, err)
-			} else {
-				return fmt.Errorf("bot %q host: %w", name, err)
+				continue // don't store bot with unresolved host
 			}
+			return fmt.Errorf("bot %q host: %w", name, err)
 		}
 		if !skipCredentials {
 			if bot.ID, err = secret.Resolve(bot.ID); err != nil {

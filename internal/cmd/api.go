@@ -206,6 +206,9 @@ func parseTypedValue(val string) (any, error) {
 		if err != nil {
 			return nil, fmt.Errorf("reading file %q: %w", path, err)
 		}
+		if len(data) > maxRequestBodySize {
+			return nil, fmt.Errorf("file %q too large (max 50MB)", path)
+		}
 		return string(data), nil
 	}
 	if n, err := strconv.ParseInt(val, 10, 64); err == nil {
@@ -472,7 +475,15 @@ func outputResponse(deps Deps, resp *http.Response, include, silent bool, jqQuer
 					return fmt.Errorf("reading response: %w", err)
 				}
 				if err := applyJQ(deps.Stdout, deps.Stderr, data, jqQuery); err != nil {
-					return err
+					// If the error is a write failure (stdout broken), propagate
+					// it directly instead of retrying with raw output.
+					if strings.HasPrefix(err.Error(), "writing output:") {
+						return fmt.Errorf("writing response: %w", err)
+					}
+					fmt.Fprintf(deps.Stderr, "warning: jq filter failed: %v\n", err)
+					if _, wErr := deps.Stdout.Write(data); wErr != nil {
+						return fmt.Errorf("writing response: %w", wErr)
+					}
 				}
 			} else if format == "json" && isJSONContentType(resp.Header.Get("Content-Type")) {
 				data, err := io.ReadAll(resp.Body)
