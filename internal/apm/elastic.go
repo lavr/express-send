@@ -5,8 +5,8 @@ package apm
 import (
 	"net/http"
 
-	"go.elastic.co/apm/v2"
 	"go.elastic.co/apm/module/apmhttp/v2"
+	"go.elastic.co/apm/v2"
 )
 
 type elasticProvider struct {
@@ -54,7 +54,7 @@ type noopFallback struct{}
 
 func (noopFallback) WrapHandler(_ string, h http.Handler) http.Handler { return h }
 func (noopFallback) StartTransaction(string) Transaction               { return noopTxn{} }
-func (noopFallback) Shutdown()                                          {}
+func (noopFallback) Shutdown()                                         {}
 
 type noopTxn struct{}
 

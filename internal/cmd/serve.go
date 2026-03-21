@@ -15,9 +15,9 @@ import (
 
 	"github.com/lavr/express-botx/internal/apm"
 	"github.com/lavr/express-botx/internal/auth"
-	"github.com/lavr/express-botx/internal/errtrack"
 	"github.com/lavr/express-botx/internal/botapi"
 	"github.com/lavr/express-botx/internal/config"
+	"github.com/lavr/express-botx/internal/errtrack"
 	vlog "github.com/lavr/express-botx/internal/log"
 	"github.com/lavr/express-botx/internal/queue"
 	"github.com/lavr/express-botx/internal/secret"
@@ -514,7 +514,6 @@ type sendResponseJSON struct {
 	OK     bool   `json:"ok"`
 	SyncID string `json:"sync_id,omitempty"`
 }
-
 
 // buildBotSecretLookup resolves bot secrets at startup and returns a lookup function.
 // Secrets are cached to avoid repeated Vault/env lookups on every JWT verification.

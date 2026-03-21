@@ -107,16 +107,16 @@ func (c *Client) GetChatInfo(ctx context.Context, chatID string) (*ChatInfo, err
 
 // UserInfo holds information about a user.
 type UserInfo struct {
-	HUID      string   `json:"user_huid"`
-	Name      string   `json:"name"`
-	Emails    []string `json:"emails"`
-	ADLogin   string   `json:"ad_login,omitempty"`
-	ADDomain  string   `json:"ad_domain,omitempty"`
-	Company   string   `json:"company,omitempty"`
-	Title     string   `json:"company_position,omitempty"`
-	Department string  `json:"department,omitempty"`
-	Active    bool     `json:"active"`
-	UserKind  string   `json:"user_kind,omitempty"`
+	HUID       string   `json:"user_huid"`
+	Name       string   `json:"name"`
+	Emails     []string `json:"emails"`
+	ADLogin    string   `json:"ad_login,omitempty"`
+	ADDomain   string   `json:"ad_domain,omitempty"`
+	Company    string   `json:"company,omitempty"`
+	Title      string   `json:"company_position,omitempty"`
+	Department string   `json:"department,omitempty"`
+	Active     bool     `json:"active"`
+	UserKind   string   `json:"user_kind,omitempty"`
 }
 
 type userByHUIDResponse struct {
@@ -174,17 +174,17 @@ func (c *Client) getUser(ctx context.Context, path string) (*UserInfo, error) {
 
 // SendRequest is the unified request for POST /api/v4/botx/notifications/direct.
 type SendRequest struct {
-	GroupChatID   string            `json:"group_chat_id"`
-	Notification  *SendNotification `json:"notification,omitempty"`
-	File          *SendFile         `json:"file,omitempty"`
-	Opts          *SendOpts         `json:"opts,omitempty"`
+	GroupChatID  string            `json:"group_chat_id"`
+	Notification *SendNotification `json:"notification,omitempty"`
+	File         *SendFile         `json:"file,omitempty"`
+	Opts         *SendOpts         `json:"opts,omitempty"`
 }
 
 // SendNotification is the notification part of a send request.
 type SendNotification struct {
-	Status   string              `json:"status"`
-	Body     string              `json:"body"`
-	Metadata json.RawMessage     `json:"metadata,omitempty"`
+	Status   string               `json:"status"`
+	Body     string               `json:"body"`
+	Metadata json.RawMessage      `json:"metadata,omitempty"`
 	Opts     *NotificationMsgOpts `json:"opts,omitempty"`
 }
 

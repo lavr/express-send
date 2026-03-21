@@ -11,7 +11,7 @@ func New() Provider { return noopProvider{} }
 
 func (noopProvider) WrapHandler(_ string, h http.Handler) http.Handler { return h }
 func (noopProvider) StartTransaction(string) Transaction               { return noopTxn{} }
-func (noopProvider) Shutdown()                                          {}
+func (noopProvider) Shutdown()                                         {}
 
 type noopTxn struct{}
 

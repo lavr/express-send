@@ -31,13 +31,13 @@ func JWTAud(ctx context.Context) string {
 }
 
 var (
-	errJWTMalformed       = errors.New("malformed JWT: expected 3 parts")
-	errJWTAlgorithm       = errors.New("unsupported JWT algorithm: only HS256 is allowed")
-	errJWTSignature       = errors.New("invalid JWT signature")
-	errJWTExpired         = errors.New("JWT has expired")
-	errJWTNotYetValid     = errors.New("JWT is not yet valid")
-	errJWTMissingAud      = errors.New("JWT missing aud claim")
-	errJWTAlgNone         = errors.New("unsigned JWT (alg: none) is not allowed")
+	errJWTMalformed   = errors.New("malformed JWT: expected 3 parts")
+	errJWTAlgorithm   = errors.New("unsupported JWT algorithm: only HS256 is allowed")
+	errJWTSignature   = errors.New("invalid JWT signature")
+	errJWTExpired     = errors.New("JWT has expired")
+	errJWTNotYetValid = errors.New("JWT is not yet valid")
+	errJWTMissingAud  = errors.New("JWT missing aud claim")
+	errJWTAlgNone     = errors.New("unsigned JWT (alg: none) is not allowed")
 )
 
 // jwtHeader represents the JOSE header of a JWT.

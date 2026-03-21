@@ -23,20 +23,20 @@ type GrafanaConfig struct {
 
 // GrafanaWebhook is the JSON payload from Grafana alerting webhook.
 type GrafanaWebhook struct {
-	Receiver          string            `json:"receiver"`
-	Status            string            `json:"status"` // "firing" | "resolved"
-	OrgID             int               `json:"orgId"`
+	Receiver          string             `json:"receiver"`
+	Status            string             `json:"status"` // "firing" | "resolved"
+	OrgID             int                `json:"orgId"`
 	Alerts            []GrafanaAlertItem `json:"alerts"`
-	GroupLabels       map[string]string `json:"groupLabels"`
-	CommonLabels      map[string]string `json:"commonLabels"`
-	CommonAnnotations map[string]string `json:"commonAnnotations"`
-	ExternalURL       string            `json:"externalURL"`
-	Version           string            `json:"version"`
-	GroupKey          string            `json:"groupKey"`
-	TruncatedAlerts   int               `json:"truncatedAlerts"`
-	Title             string            `json:"title"`
-	State             string            `json:"state"` // "alerting" | "ok" | "no_data" | "pending"
-	Message           string            `json:"message"`
+	GroupLabels       map[string]string  `json:"groupLabels"`
+	CommonLabels      map[string]string  `json:"commonLabels"`
+	CommonAnnotations map[string]string  `json:"commonAnnotations"`
+	ExternalURL       string             `json:"externalURL"`
+	Version           string             `json:"version"`
+	GroupKey          string             `json:"groupKey"`
+	TruncatedAlerts   int                `json:"truncatedAlerts"`
+	Title             string             `json:"title"`
+	State             string             `json:"state"` // "alerting" | "ok" | "no_data" | "pending"
+	Message           string             `json:"message"`
 }
 
 // GrafanaAlertItem is a single alert within the Grafana webhook payload.
