@@ -1,5 +1,6 @@
 dist/
 /express-botx
+coverage.out
 config-local.yaml
 examples/**/.env
 .*.json
