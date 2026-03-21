@@ -222,9 +222,9 @@ go test ./internal/server/ -run TestWebhookHandler -v
 
 ### 2.5 WebhookHandler — ошибки
 
-- [ ] HTTP response не 2xx → error с кодом и телом ответа (truncated)
-- [ ] Timeout → context deadline → error
-- [ ] Connection refused → error с понятным сообщением
+- [x] HTTP response не 2xx → error с кодом и телом ответа (truncated)
+- [x] Timeout → context deadline → error
+- [x] Connection refused → error с понятным сообщением
 
 ```
 go test ./internal/server/ -run TestWebhookHandlerErrors -v

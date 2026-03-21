@@ -3,8 +3,10 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -59,6 +61,15 @@ func (h *WebhookHandler) Handle(ctx context.Context, event string, payload []byt
 
 	resp, err := h.client.Do(req)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("webhook handler %q: request timed out", h.url)
+		}
+		var netErr *net.OpError
+		if errors.As(err, &netErr) {
+			if netErr.Op == "dial" {
+				return fmt.Errorf("webhook handler %q: connection refused (is the server running at %s?)", h.url, h.url)
+			}
+		}
 		return fmt.Errorf("webhook handler %q: %w", h.url, err)
 	}
 	defer resp.Body.Close()
