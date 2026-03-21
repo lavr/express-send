@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -50,20 +51,24 @@ type apiBody struct {
 }
 
 type apiBodyParams struct {
-	method    string    // HTTP method (or empty for auto-selection)
-	fields    []string  // -f key=value
-	inputFile string    // --input (path, "-" for stdin)
-	stdin     io.Reader // deps.Stdin
+	method      string    // HTTP method (or empty for auto-selection)
+	fields      []string  // -f key=value
+	typedFields []string  // -F key=value (auto type coercion)
+	inputFile   string    // --input (path, "-" for stdin)
+	stdin       io.Reader // deps.Stdin
 }
 
 func buildAPIBody(p apiBodyParams) (*apiBody, error) {
-	hasFields := len(p.fields) > 0
+	hasFields := len(p.fields) > 0 || len(p.typedFields) > 0
 	hasInput := p.inputFile != ""
 	isMultipart := hasInput && strings.HasPrefix(p.inputFile, "@")
 
 	// Validate mutual exclusions
 	if hasInput && !isMultipart && hasFields {
 		return nil, fmt.Errorf("--input and -f/-F are mutually exclusive (use --input @file for multipart)")
+	}
+	if isMultipart && len(p.typedFields) > 0 {
+		return nil, fmt.Errorf("-F is not supported in multipart mode, use -f for text parts")
 	}
 
 	// Determine method
@@ -99,7 +104,7 @@ func buildAPIBody(p apiBodyParams) (*apiBody, error) {
 		return &apiBody{data: data, method: method}, nil
 	}
 
-	// JSON mode: -f fields without multipart
+	// JSON mode: -f/-F fields without multipart
 	if hasFields && !isMultipart {
 		obj := make(map[string]any)
 		for _, f := range p.fields {
@@ -109,6 +114,17 @@ func buildAPIBody(p apiBodyParams) (*apiBody, error) {
 			}
 			obj[key] = val
 		}
+		for _, f := range p.typedFields {
+			key, val, ok := strings.Cut(f, "=")
+			if !ok {
+				return nil, fmt.Errorf("invalid field format %q (expected key=value)", f)
+			}
+			typed, err := parseTypedValue(val)
+			if err != nil {
+				return nil, fmt.Errorf("field %q: %w", key, err)
+			}
+			obj[key] = typed
+		}
 		data, err := json.Marshal(obj)
 		if err != nil {
 			return nil, fmt.Errorf("marshaling JSON body: %w", err)
@@ -117,6 +133,29 @@ func buildAPIBody(p apiBodyParams) (*apiBody, error) {
 	}
 
 	return &apiBody{method: method}, nil
+}
+
+// parseTypedValue converts a string value to a typed value for -F fields:
+// "true"/"false" → bool, integer strings → number, @filename → file contents as string.
+func parseTypedValue(val string) (any, error) {
+	if val == "true" {
+		return true, nil
+	}
+	if val == "false" {
+		return false, nil
+	}
+	if strings.HasPrefix(val, "@") {
+		path := val[1:]
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("reading file %q: %w", path, err)
+		}
+		return string(data), nil
+	}
+	if n, err := strconv.ParseInt(val, 10, 64); err == nil {
+		return n, nil
+	}
+	return val, nil
 }
 
 func hasAuthHeader(headers []string) bool {
@@ -171,6 +210,7 @@ func runApi(args []string, deps Deps) error {
 	var flags config.Flags
 	var method string
 	var fields stringSlice
+	var typedFields stringSlice
 	var headers stringSlice
 	var inputFile string
 	var jqExpr string
@@ -183,6 +223,7 @@ func runApi(args []string, deps Deps) error {
 	fs.StringVar(&method, "method", "", "HTTP method")
 	fs.Var(&fields, "f", "string field for JSON body (key=value, repeatable)")
 	fs.Var(&fields, "field", "string field for JSON body (key=value, repeatable)")
+	fs.Var(&typedFields, "F", "typed field: true/false→bool, int→number, @file→contents (key=value, repeatable)")
 	fs.Var(&headers, "H", "custom HTTP header (key:value, repeatable)")
 	fs.Var(&headers, "header", "custom HTTP header (key:value, repeatable)")
 	fs.StringVar(&inputFile, "input", "", "file with request body (- for stdin)")
@@ -268,10 +309,11 @@ Options:
 
 	// Build request body (before auth — validate inputs first)
 	body, err := buildAPIBody(apiBodyParams{
-		method:    method,
-		fields:    fields,
-		inputFile: inputFile,
-		stdin:     deps.Stdin,
+		method:      method,
+		fields:      fields,
+		typedFields: typedFields,
+		inputFile:   inputFile,
+		stdin:       deps.Stdin,
 	})
 	if err != nil {
 		return err

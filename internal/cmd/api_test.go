@@ -120,6 +120,142 @@ func TestBuildAPIBody_InputAndFieldsMutualExclusion(t *testing.T) {
 	}
 }
 
+// --- buildAPIBody with -F typed fields ---
+
+func TestBuildAPIBody_TypedFieldsBool(t *testing.T) {
+	body, err := buildAPIBody(apiBodyParams{
+		typedFields: []string{"active=true", "deleted=false"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if body.contentType != "application/json" {
+		t.Errorf("expected application/json, got %s", body.contentType)
+	}
+	if body.method != "POST" {
+		t.Errorf("expected POST, got %s", body.method)
+	}
+
+	var obj map[string]any
+	if err := json.Unmarshal(body.data, &obj); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if obj["active"] != true {
+		t.Errorf("expected active=true (bool), got %v (%T)", obj["active"], obj["active"])
+	}
+	if obj["deleted"] != false {
+		t.Errorf("expected deleted=false (bool), got %v (%T)", obj["deleted"], obj["deleted"])
+	}
+}
+
+func TestBuildAPIBody_TypedFieldsNumber(t *testing.T) {
+	body, err := buildAPIBody(apiBodyParams{
+		typedFields: []string{"count=42", "negative=-5", "zero=0"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var obj map[string]any
+	if err := json.Unmarshal(body.data, &obj); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	// JSON numbers unmarshal as float64
+	if obj["count"] != float64(42) {
+		t.Errorf("expected count=42, got %v (%T)", obj["count"], obj["count"])
+	}
+	if obj["negative"] != float64(-5) {
+		t.Errorf("expected negative=-5, got %v (%T)", obj["negative"], obj["negative"])
+	}
+	if obj["zero"] != float64(0) {
+		t.Errorf("expected zero=0, got %v (%T)", obj["zero"], obj["zero"])
+	}
+}
+
+func TestBuildAPIBody_TypedFieldsFileRef(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "content.txt")
+	os.WriteFile(path, []byte("file contents here"), 0644)
+
+	body, err := buildAPIBody(apiBodyParams{
+		typedFields: []string{"data=@" + path},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var obj map[string]any
+	if err := json.Unmarshal(body.data, &obj); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if obj["data"] != "file contents here" {
+		t.Errorf("expected file contents, got %v", obj["data"])
+	}
+}
+
+func TestBuildAPIBody_TypedFieldsString(t *testing.T) {
+	body, err := buildAPIBody(apiBodyParams{
+		typedFields: []string{"name=hello", "value=3.14"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var obj map[string]any
+	if err := json.Unmarshal(body.data, &obj); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if obj["name"] != "hello" {
+		t.Errorf("expected name=hello (string), got %v (%T)", obj["name"], obj["name"])
+	}
+	// 3.14 is not an integer, so should remain string
+	if obj["value"] != "3.14" {
+		t.Errorf("expected value=3.14 (string), got %v (%T)", obj["value"], obj["value"])
+	}
+}
+
+func TestBuildAPIBody_MixedFieldsAndTypedFields(t *testing.T) {
+	body, err := buildAPIBody(apiBodyParams{
+		fields:      []string{"name=test"},
+		typedFields: []string{"count=5", "active=true"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var obj map[string]any
+	if err := json.Unmarshal(body.data, &obj); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if obj["name"] != "test" {
+		t.Errorf("expected name=test (string), got %v", obj["name"])
+	}
+	if obj["count"] != float64(5) {
+		t.Errorf("expected count=5 (number), got %v (%T)", obj["count"], obj["count"])
+	}
+	if obj["active"] != true {
+		t.Errorf("expected active=true (bool), got %v (%T)", obj["active"], obj["active"])
+	}
+}
+
+func TestBuildAPIBody_TypedFieldsFileNotFound(t *testing.T) {
+	_, err := buildAPIBody(apiBodyParams{
+		typedFields: []string{"data=@/nonexistent/file.txt"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "reading file") {
+		t.Errorf("expected file read error, got: %v", err)
+	}
+}
+
+func TestBuildAPIBody_TypedFieldsInvalidFormat(t *testing.T) {
+	_, err := buildAPIBody(apiBodyParams{
+		typedFields: []string{"no-equals-sign"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "invalid field format") {
+		t.Errorf("expected invalid field format error, got: %v", err)
+	}
+}
+
 // --- hasAuthHeader ---
 
 func TestHasAuthHeader(t *testing.T) {
@@ -420,6 +556,49 @@ func TestRunApi_RawInput(t *testing.T) {
 	}, deps)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunApi_TypedFieldsPOST(t *testing.T) {
+	ts := apiTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		body, _ := io.ReadAll(r.Body)
+		var obj map[string]any
+		if err := json.Unmarshal(body, &obj); err != nil {
+			t.Fatalf("invalid JSON body: %v", err)
+		}
+		// -f name=test → string
+		if obj["name"] != "test" {
+			t.Errorf("expected name=test, got %v", obj["name"])
+		}
+		// -F count=10 → number
+		if obj["count"] != float64(10) {
+			t.Errorf("expected count=10 (number), got %v (%T)", obj["count"], obj["count"])
+		}
+		// -F active=true → bool
+		if obj["active"] != true {
+			t.Errorf("expected active=true (bool), got %v (%T)", obj["active"], obj["active"])
+		}
+		fmt.Fprint(w, `{"result":"ok"}`)
+	})
+
+	cfgPath := apiTestConfig(t, ts.URL)
+	deps, stdout, _ := testDeps()
+
+	err := runApi([]string{
+		"--config", cfgPath,
+		"-f", "name=test",
+		"-F", "count=10",
+		"-F", "active=true",
+		"/api/v3/test",
+	}, deps)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "ok") {
+		t.Errorf("unexpected output: %s", stdout.String())
 	}
 }
 
