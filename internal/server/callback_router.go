@@ -1,6 +1,11 @@
 package server
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+
+	"github.com/lavr/express-botx/internal/config"
+)
 
 // matchedRule pairs a handler with its async flag from the matching rule.
 type matchedRule struct {
@@ -44,6 +49,42 @@ func NewCallbackRouter(events [][]string, asyncFlags []bool, handlers map[int]Ca
 	}
 
 	return &CallbackRouter{rules: rules}, nil
+}
+
+// buildHandlers creates a CallbackHandler for each config rule, returning a map
+// keyed by rule index. Custom handlers from the registry take precedence: if a
+// rule's handler type matches a registered custom handler, that handler is used
+// instead of the built-in exec/webhook constructors.
+func buildHandlers(rules []config.CallbackRule, custom map[string]CallbackHandler) (map[int]CallbackHandler, error) {
+	handlers := make(map[int]CallbackHandler, len(rules))
+	for i, rule := range rules {
+		var timeout time.Duration
+		if rule.Handler.Timeout != "" {
+			var err error
+			timeout, err = time.ParseDuration(rule.Handler.Timeout)
+			if err != nil {
+				return nil, fmt.Errorf("callback rule #%d: invalid timeout %q: %w", i+1, rule.Handler.Timeout, err)
+			}
+		}
+
+		// Check custom handler registry first.
+		if custom != nil {
+			if ch, ok := custom[rule.Handler.Type]; ok {
+				handlers[i] = ch
+				continue
+			}
+		}
+
+		switch rule.Handler.Type {
+		case "exec":
+			handlers[i] = NewExecHandler(rule.Handler.Command, timeout)
+		case "webhook":
+			handlers[i] = NewWebhookHandler(rule.Handler.URL, timeout)
+		default:
+			return nil, fmt.Errorf("callback rule #%d: unknown handler type %q", i+1, rule.Handler.Type)
+		}
+	}
+	return handlers, nil
 }
 
 // Route returns all rules that match the given event, in declaration order.

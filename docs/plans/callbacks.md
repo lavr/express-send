@@ -257,9 +257,9 @@ go test ./internal/server/ -run TestCallbackRouter -v
 
 ### 3.3 Handler registry — сборка из конфига
 
-- [ ] Функция `buildHandlers(rules []config.CallbackRule) (map[int]CallbackHandler, error)`
-- [ ] Создаёт ExecHandler / WebhookHandler по каждому правилу
-- [ ] Поддержка custom handlers через registry (для библиотечного API)
+- [x] Функция `buildHandlers(rules []config.CallbackRule) (map[int]CallbackHandler, error)`
+- [x] Создаёт ExecHandler / WebhookHandler по каждому правилу
+- [x] Поддержка custom handlers через registry (для библиотечного API)
 
 ```
 go test ./internal/server/ -run TestBuildHandlers -v
