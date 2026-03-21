@@ -26,7 +26,7 @@ func NewWebhookHandler(url string, timeout time.Duration) *WebhookHandler {
 	return &WebhookHandler{
 		url:     url,
 		timeout: timeout,
-		client:  &http.Client{},
+		client:  &http.Client{Timeout: 5 * time.Minute},
 	}
 }
 
