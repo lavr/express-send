@@ -354,15 +354,9 @@ Options:
 	manualAuth := hasAuthHeader(headers)
 
 	// Load config
-	cfg, err := config.Load(flags)
+	cfg, err := config.LoadForAPI(flags, manualAuth)
 	if err != nil {
-		if !manualAuth || flags.Host == "" {
-			return err
-		}
-		// Manual auth with --host: create minimal config
-		cfg = &config.Config{}
-		cfg.Host = flags.Host
-		cfg.Format = flags.Format
+		return err
 	}
 	if err := cfg.ValidateFormat(); err != nil {
 		return err
@@ -453,13 +447,19 @@ Options:
 
 func outputResponse(deps Deps, resp *http.Response, include, silent bool, jqQuery *gojq.Query, format string) error {
 	if include {
-		fmt.Fprintf(deps.Stdout, "%s %s\n", resp.Proto, resp.Status)
+		if _, err := fmt.Fprintf(deps.Stdout, "%s %s\n", resp.Proto, resp.Status); err != nil {
+			return fmt.Errorf("writing response: %w", err)
+		}
 		for key, vals := range resp.Header {
 			for _, v := range vals {
-				fmt.Fprintf(deps.Stdout, "%s: %s\n", key, v)
+				if _, err := fmt.Fprintf(deps.Stdout, "%s: %s\n", key, v); err != nil {
+					return fmt.Errorf("writing response: %w", err)
+				}
 			}
 		}
-		fmt.Fprintln(deps.Stdout)
+		if _, err := fmt.Fprintln(deps.Stdout); err != nil {
+			return fmt.Errorf("writing response: %w", err)
+		}
 	}
 
 	isSuccess := resp.StatusCode >= 200 && resp.StatusCode < 300
@@ -479,7 +479,9 @@ func outputResponse(deps Deps, resp *http.Response, include, silent bool, jqQuer
 				if err != nil {
 					return fmt.Errorf("reading response: %w", err)
 				}
-				prettyPrintJSON(deps.Stdout, data)
+				if err := prettyPrintJSON(deps.Stdout, data); err != nil {
+					return fmt.Errorf("writing response: %w", err)
+				}
 			} else {
 				if _, err := io.Copy(deps.Stdout, resp.Body); err != nil {
 					return fmt.Errorf("writing response: %w", err)
@@ -492,13 +494,24 @@ func outputResponse(deps Deps, resp *http.Response, include, silent bool, jqQuer
 			}
 			if jqQuery != nil {
 				if err := applyJQ(deps.Stdout, deps.Stderr, data, jqQuery); err != nil {
+					// If the error is a write failure (stdout broken), propagate
+					// it directly instead of retrying with raw output.
+					if strings.HasPrefix(err.Error(), "writing output:") {
+						return fmt.Errorf("writing response: %w", err)
+					}
 					fmt.Fprintf(deps.Stderr, "warning: jq filter failed: %v\n", err)
-					deps.Stdout.Write(data)
+					if _, wErr := deps.Stdout.Write(data); wErr != nil {
+						return fmt.Errorf("writing response: %w", wErr)
+					}
 				}
 			} else if format == "json" && isJSONContentType(resp.Header.Get("Content-Type")) {
-				prettyPrintJSON(deps.Stdout, data)
+				if err := prettyPrintJSON(deps.Stdout, data); err != nil {
+					return fmt.Errorf("writing response: %w", err)
+				}
 			} else {
-				deps.Stdout.Write(data)
+				if _, err := deps.Stdout.Write(data); err != nil {
+					return fmt.Errorf("writing response: %w", err)
+				}
 			}
 		}
 	}
@@ -513,14 +526,15 @@ func isJSONContentType(ct string) bool {
 	return strings.Contains(ct, "application/json")
 }
 
-func prettyPrintJSON(w io.Writer, data []byte) {
+func prettyPrintJSON(w io.Writer, data []byte) error {
 	var buf bytes.Buffer
 	if err := json.Indent(&buf, data, "", "  "); err != nil {
-		w.Write(data)
-		return
+		_, wErr := w.Write(data)
+		return wErr
 	}
 	buf.WriteByte('\n')
-	w.Write(buf.Bytes())
+	_, err := w.Write(buf.Bytes())
+	return err
 }
 
 // parseJQ parses a jq expression and returns the compiled query.
@@ -536,7 +550,9 @@ func parseJQ(expr string) (*gojq.Query, error) {
 func applyJQ(stdout io.Writer, stderr io.Writer, data []byte, query *gojq.Query) error {
 	var input any
 	if err := json.Unmarshal(data, &input); err != nil {
-		stdout.Write(data)
+		if _, wErr := stdout.Write(data); wErr != nil {
+			return fmt.Errorf("writing output: %w", wErr)
+		}
 		fmt.Fprintf(stderr, "warning: response is not valid JSON, showing raw output\n")
 		return nil
 	}
@@ -552,13 +568,17 @@ func applyJQ(stdout io.Writer, stderr io.Writer, data []byte, query *gojq.Query)
 		}
 		switch val := v.(type) {
 		case string:
-			fmt.Fprintln(stdout, val)
+			if _, err := fmt.Fprintln(stdout, val); err != nil {
+				return fmt.Errorf("writing output: %w", err)
+			}
 		default:
 			out, err := json.Marshal(val)
 			if err != nil {
 				return fmt.Errorf("marshaling jq result: %w", err)
 			}
-			fmt.Fprintln(stdout, string(out))
+			if _, err := fmt.Fprintln(stdout, string(out)); err != nil {
+				return fmt.Errorf("writing output: %w", err)
+			}
 		}
 	}
 	return nil
