@@ -24,7 +24,7 @@ race:
 	go test -race -timeout=60s -tags "$(BUILD_TAGS)" ./...
 
 docker-build:
-	docker build -t "$(IMAGE_NAME):$(VERSION)" .
+	docker build --build-arg VERSION="$(VERSION)" --build-arg BUILD_TAGS="$(BUILD_TAGS)" -t "$(IMAGE_NAME):$(VERSION)" .
 
 version:
 	@echo "$(VERSION)"
