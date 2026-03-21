@@ -52,7 +52,7 @@ type noopFallback struct{}
 
 func (noopFallback) WrapHandler(_ string, h http.Handler) http.Handler { return h }
 func (noopFallback) StartTransaction(string) Transaction               { return noopTxn{} }
-func (noopFallback) Shutdown()                                         {}
+func (noopFallback) Shutdown()                                          {}
 
 type noopTxn struct{}
 

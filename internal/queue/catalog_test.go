@@ -26,7 +26,7 @@ func TestBuildCatalogSnapshot_NoSecrets(t *testing.T) {
 			},
 		},
 		Chats: map[string]config.ChatConfig{
-			"deploy":  {ID: "chat-uuid-001", Bot: "alerts"},
+			"deploy": {ID: "chat-uuid-001", Bot: "alerts"},
 			"general": {ID: "chat-uuid-002", Default: true},
 		},
 	}

@@ -14,10 +14,10 @@ import (
 
 // recordingHandler records calls for test assertions.
 type recordingHandler struct {
-	mu    sync.Mutex
-	calls []recordedCall
-	err   error // if non-nil, Handle returns this error
-	delay time.Duration
+	mu      sync.Mutex
+	calls   []recordedCall
+	err     error // if non-nil, Handle returns this error
+	delay   time.Duration
 }
 
 type recordedCall struct {
@@ -67,11 +67,11 @@ func newTestServerWithCallbackRouter(router *CallbackRouter) *Server {
 
 // blockingHandler blocks until its context is cancelled or release is called.
 type blockingHandler struct {
-	mu      sync.Mutex
-	calls   int
-	started chan struct{} // closed when Handle begins
-	release chan struct{} // close to unblock Handle
-	ctxDone bool          // set to true if context was cancelled during Handle
+	mu       sync.Mutex
+	calls    int
+	started  chan struct{} // closed when Handle begins
+	release  chan struct{} // close to unblock Handle
+	ctxDone  bool         // set to true if context was cancelled during Handle
 }
 
 func newBlockingHandler() *blockingHandler {

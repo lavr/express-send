@@ -37,21 +37,21 @@ const (
 
 // systemEventMap maps "system:*" command body prefixes to event type strings.
 var systemEventMap = map[string]string{
-	"system:chat_created":              EventChatCreated,
-	"system:added_to_chat":             EventAddedToChat,
-	"system:user_joined_to_chat":       EventUserJoinedToChat,
-	"system:deleted_from_chat":         EventDeletedFromChat,
-	"system:left_from_chat":            EventLeftFromChat,
-	"system:chat_deleted_by_user":      EventChatDeletedByUser,
-	"system:cts_login":                 EventCTSLogin,
-	"system:cts_logout":                EventCTSLogout,
-	"system:event_edit":                EventEdit,
-	"system:smartapp_event":            EventSmartAppEvent,
+	"system:chat_created":             EventChatCreated,
+	"system:added_to_chat":            EventAddedToChat,
+	"system:user_joined_to_chat":      EventUserJoinedToChat,
+	"system:deleted_from_chat":        EventDeletedFromChat,
+	"system:left_from_chat":           EventLeftFromChat,
+	"system:chat_deleted_by_user":     EventChatDeletedByUser,
+	"system:cts_login":                EventCTSLogin,
+	"system:cts_logout":               EventCTSLogout,
+	"system:event_edit":               EventEdit,
+	"system:smartapp_event":           EventSmartAppEvent,
 	"system:internal_bot_notification": EventInternalBotNotification,
-	"system:conference_created":        EventConferenceCreated,
-	"system:conference_deleted":        EventConferenceDeleted,
-	"system:call_started":              EventCallStarted,
-	"system:call_ended":                EventCallEnded,
+	"system:conference_created":       EventConferenceCreated,
+	"system:conference_deleted":       EventConferenceDeleted,
+	"system:call_started":             EventCallStarted,
+	"system:call_ended":               EventCallEnded,
 }
 
 // parseEventType determines the event type from the command body string.
@@ -69,14 +69,14 @@ func parseEventType(commandBody string) string {
 
 // CallbackPayload represents a BotX API v4 POST /command request body.
 type CallbackPayload struct {
-	SyncID       string          `json:"sync_id"`
-	Command      CallbackCommand `json:"command"`
-	From         CallbackFrom    `json:"from"`
-	BotID        string          `json:"bot_id"`
-	ProtoVersion int             `json:"proto_version,omitempty"`
-	Attachments  json.RawMessage `json:"attachments,omitempty"`
-	AsyncFiles   json.RawMessage `json:"async_files,omitempty"`
-	Entities     json.RawMessage `json:"entities,omitempty"`
+	SyncID       string                 `json:"sync_id"`
+	Command      CallbackCommand        `json:"command"`
+	From         CallbackFrom           `json:"from"`
+	BotID        string                 `json:"bot_id"`
+	ProtoVersion int                    `json:"proto_version,omitempty"`
+	Attachments  json.RawMessage        `json:"attachments,omitempty"`
+	AsyncFiles   json.RawMessage        `json:"async_files,omitempty"`
+	Entities     json.RawMessage        `json:"entities,omitempty"`
 }
 
 // CallbackCommand holds the command part of a callback payload.

@@ -27,7 +27,7 @@ func (f *slogLogFormatter) NewLogEntry(r *http.Request) middleware.LogEntry {
 }
 
 type slogLogEntry struct {
-	logger                                    *slog.Logger
+	logger                            *slog.Logger
 	method, path, query, remote, proto, reqID string
 }
 

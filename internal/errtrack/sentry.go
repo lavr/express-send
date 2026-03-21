@@ -49,4 +49,4 @@ type noopFallback struct{}
 
 func (noopFallback) Middleware(h http.Handler) http.Handler { return h }
 func (noopFallback) CaptureError(_ error)                   {}
-func (noopFallback) Flush()                                 {}
+func (noopFallback) Flush()                                  {}

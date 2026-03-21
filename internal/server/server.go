@@ -44,21 +44,21 @@ type Config struct {
 
 // Server is the HTTP server for express-botx.
 type Server struct {
-	cfg                  Config
-	send                 SendFunc
-	chats                ChatResolver
-	keyMap               map[string]string // key -> name
-	botNameSet           map[string]bool   // valid bot names for multi-bot mode
-	apm                  apm.Provider
-	errTracker           errtrack.Tracker
-	botEntries           []config.BotEntry  // for GET /bot/list
-	chatEntries          []config.ChatEntry // for GET /chats/alias/list
-	amCfg                *AlertmanagerConfig
-	grCfg                *GrafanaConfig
+	cfg        Config
+	send       SendFunc
+	chats      ChatResolver
+	keyMap     map[string]string // key -> name
+	botNameSet map[string]bool   // valid bot names for multi-bot mode
+	apm        apm.Provider
+	errTracker errtrack.Tracker
+	botEntries  []config.BotEntry  // for GET /bot/list
+	chatEntries []config.ChatEntry // for GET /chats/alias/list
+	amCfg          *AlertmanagerConfig
+	grCfg          *GrafanaConfig
 	callbackRouter       *CallbackRouter
 	callbacksCfg         *config.CallbacksConfig
 	callbackSecretLookup func(botID string) (string, error)
-	callbackWG           sync.WaitGroup     // tracks in-flight async callback handlers
+	callbackWG           sync.WaitGroup    // tracks in-flight async callback handlers
 	callbackCtx          context.Context    // cancelled on shutdown to signal async handlers
 	callbackCancel       context.CancelFunc // cancels callbackCtx
 	srv                  *http.Server

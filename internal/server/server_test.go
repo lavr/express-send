@@ -533,7 +533,7 @@ func testAlertmanagerConfig(t *testing.T) *AlertmanagerConfig {
 		t.Fatalf("parse default template: %v", err)
 	}
 	return &AlertmanagerConfig{
-		DefaultChatID:   "alert-chat-id",
+		DefaultChatID:          "alert-chat-id",
 		ErrorSeverities: []string{"critical", "warning"},
 		Template:        tmpl,
 	}
@@ -542,7 +542,7 @@ func testAlertmanagerConfig(t *testing.T) *AlertmanagerConfig {
 func alertmanagerPayload(status string, alerts ...AlertItem) string {
 	w := AlertmanagerWebhook{
 		Version:     "4",
-		GroupKey:    "test-group",
+		GroupKey:     "test-group",
 		Status:      status,
 		Receiver:    "express",
 		GroupLabels: map[string]string{"alertname": "TestAlert"},
@@ -694,7 +694,7 @@ func TestAlertmanager_StatusMapping(t *testing.T) {
 func TestAlertmanager_ChatIDQueryParam(t *testing.T) {
 	tmpl, _ := ParseAlertmanagerTemplate(`test`)
 	amCfg := &AlertmanagerConfig{
-		DefaultChatID:   "default-chat",
+		DefaultChatID:          "default-chat",
 		ErrorSeverities: []string{"critical"},
 		Template:        tmpl,
 	}
@@ -745,7 +745,7 @@ func TestAlertmanager_ChatIDQueryParam(t *testing.T) {
 func TestAlertmanager_NoChatID(t *testing.T) {
 	tmpl, _ := ParseAlertmanagerTemplate(`test`)
 	amCfg := &AlertmanagerConfig{
-		DefaultChatID:   "", // no default
+		DefaultChatID:          "", // no default
 		ErrorSeverities: []string{"critical"},
 		Template:        tmpl,
 	}
@@ -854,7 +854,7 @@ func TestAlertmanager_CustomTemplate(t *testing.T) {
 		t.Fatalf("parse template: %v", err)
 	}
 	amCfg := &AlertmanagerConfig{
-		DefaultChatID:   "chat-1",
+		DefaultChatID:          "chat-1",
 		ErrorSeverities: []string{"critical"},
 		Template:        tmpl,
 	}
@@ -908,13 +908,13 @@ func grafanaPayload(status, state, title string, alerts ...GrafanaAlertItem) str
 	w := GrafanaWebhook{
 		Version:     "1",
 		GroupKey:    "test-group",
-		Status:      status,
-		State:       state,
-		Title:       title,
-		Receiver:    "express",
-		OrgID:       1,
+		Status:     status,
+		State:      state,
+		Title:      title,
+		Receiver:   "express",
+		OrgID:      1,
 		GroupLabels: map[string]string{"alertname": "TestAlert"},
-		Alerts:      alerts,
+		Alerts:     alerts,
 	}
 	b, _ := json.Marshal(w)
 	return string(b)
@@ -1491,8 +1491,8 @@ func TestAlertmanager_MultiBot_RequiresBot(t *testing.T) {
 	srv := New(cfg, sendFn, chatResolver, WithAlertmanager(amCfg))
 
 	body := alertmanagerPayload("firing", AlertItem{
-		Status:      "firing",
-		Labels:      map[string]string{"alertname": "Test", "severity": "critical", "instance": "x"},
+		Status: "firing",
+		Labels: map[string]string{"alertname": "Test", "severity": "critical", "instance": "x"},
 		Annotations: map[string]string{"summary": "test"},
 	})
 
@@ -1530,8 +1530,8 @@ func TestGrafana_MultiBot_RequiresBot(t *testing.T) {
 	srv := New(cfg, sendFn, chatResolver, WithGrafana(grCfg))
 
 	body := grafanaPayload("firing", "alerting", "test", GrafanaAlertItem{
-		Status:      "firing",
-		Labels:      map[string]string{"alertname": "Test", "grafana_folder": "Prod"},
+		Status: "firing",
+		Labels: map[string]string{"alertname": "Test", "grafana_folder": "Prod"},
 		Annotations: map[string]string{"summary": "test"},
 	})
 
