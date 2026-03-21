@@ -63,12 +63,23 @@ func runChats(args []string, deps Deps) error {
 	}
 }
 
+type chatsListEntry struct {
+	BotName     string `json:"bot_name,omitempty"`
+	GroupChatID string `json:"group_chat_id"`
+	Name        string `json:"name"`
+	ChatType    string `json:"chat_type"`
+	Members     int    `json:"members"`
+}
+
 func runChatsList(args []string, deps Deps) error {
 	fs := flag.NewFlagSet("chats list", flag.ContinueOnError)
 	fs.SetOutput(deps.Stderr)
 	var flags config.Flags
+	var all bool
 
 	globalFlags(fs, &flags)
+	fs.BoolVar(&all, "all", false, "list chats for all configured bots")
+	fs.BoolVar(&all, "A", false, "list chats for all configured bots (shorthand)")
 	fs.Usage = func() {
 		fmt.Fprintf(deps.Stderr, "Usage: express-botx chats list [options]\n\nList chats the bot is a member of.\n\nOptions:\n")
 		fs.PrintDefaults()
@@ -79,6 +90,10 @@ func runChatsList(args []string, deps Deps) error {
 			return nil
 		}
 		return err
+	}
+
+	if all {
+		return runChatsListAll(flags, deps)
 	}
 
 	cfg, err := config.Load(flags)
@@ -117,6 +132,103 @@ func runChatsList(args []string, deps Deps) error {
 			fmt.Fprintln(deps.Stdout)
 		}
 	}, chats)
+}
+
+func runChatsListAll(flags config.Flags, deps Deps) error {
+	if perBotFlagsSet(flags) {
+		return fmt.Errorf("--all is mutually exclusive with --bot, --host, --bot-id, --secret, --token")
+	}
+
+	cfg, err := config.LoadMinimal(flags)
+	if err != nil {
+		return err
+	}
+	if err := cfg.ValidateFormat(); err != nil {
+		return err
+	}
+
+	names := cfg.BotNames()
+	if len(names) == 0 {
+		return fmt.Errorf("no bots configured")
+	}
+
+	var entries []chatsListEntry
+	var anyFailed bool
+
+	for _, name := range names {
+		botCfg, err := cfg.ConfigForBot(name)
+		if err != nil {
+			anyFailed = true
+			entries = append(entries, chatsListEntry{
+				BotName: name,
+				Name:    fmt.Sprintf("ERROR: %s", err.Error()),
+			})
+			continue
+		}
+
+		tok, _, authErr := authenticate(botCfg)
+		if authErr != nil {
+			anyFailed = true
+			entries = append(entries, chatsListEntry{
+				BotName: name,
+				Name:    fmt.Sprintf("ERROR: %s", authErr.Error()),
+			})
+			continue
+		}
+
+		client := botapi.NewClient(botCfg.Host, tok, botCfg.HTTPTimeout())
+		chats, apiErr := client.ListChats(context.Background())
+		if apiErr != nil {
+			anyFailed = true
+			entries = append(entries, chatsListEntry{
+				BotName: name,
+				Name:    fmt.Sprintf("ERROR: %s", apiErr.Error()),
+			})
+			continue
+		}
+
+		for _, chat := range chats {
+			entries = append(entries, chatsListEntry{
+				BotName:     name,
+				GroupChatID: chat.GroupChatID,
+				Name:        chat.Name,
+				ChatType:    chat.ChatType,
+				Members:     len(chat.Members),
+			})
+		}
+	}
+
+	printErr := printOutput(deps.Stdout, cfg.Format, func() {
+		if len(entries) == 0 {
+			fmt.Fprintln(deps.Stdout, "No chats found.")
+			return
+		}
+
+		currentBot := ""
+		for _, e := range entries {
+			if e.BotName != currentBot {
+				if currentBot != "" {
+					fmt.Fprintln(deps.Stdout)
+				}
+				fmt.Fprintf(deps.Stdout, "%s:\n", e.BotName)
+				currentBot = e.BotName
+			}
+			if strings.HasPrefix(e.Name, "ERROR: ") {
+				fmt.Fprintf(deps.Stdout, "  %s\n", e.Name)
+				continue
+			}
+			fmt.Fprintf(deps.Stdout, "  %-36s  %-20s  %s  (%d members)\n",
+				e.GroupChatID, e.Name, e.ChatType, e.Members)
+		}
+	}, entries)
+	if printErr != nil {
+		return printErr
+	}
+
+	if anyFailed {
+		return fmt.Errorf("one or more bots failed")
+	}
+	return nil
 }
 
 func runChatsInfo(args []string, deps Deps) error {

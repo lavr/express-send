@@ -780,6 +780,168 @@ bots:
 `, botName, host, extra))
 }
 
+// --- chats list --all ---
+
+func TestChatsList_All_Text(t *testing.T) {
+	chats := []botapi.ChatInfo{
+		{GroupChatID: "chat-1", Name: "General", ChatType: chatTypeGroup, Members: []string{"a", "b"}},
+		{GroupChatID: "chat-2", Name: "Alerts", ChatType: chatTypeGroup, Members: []string{"a"}},
+	}
+	srv := newChatsListServer(t, chats)
+	defer srv.Close()
+
+	cfgPath := writeTestConfig(t, fmt.Sprintf(`
+bots:
+  alpha:
+    host: %s
+    id: id-alpha
+    token: test-token
+  beta:
+    host: %s
+    id: id-beta
+    token: test-token
+`, srv.URL, srv.URL))
+
+	deps, stdout, _ := testDeps()
+	err := runChatsList([]string{"--config", cfgPath, "--all"}, deps)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "alpha:") {
+		t.Errorf("expected 'alpha:' header, got: %s", out)
+	}
+	if !strings.Contains(out, "beta:") {
+		t.Errorf("expected 'beta:' header, got: %s", out)
+	}
+	if !strings.Contains(out, "chat-1") || !strings.Contains(out, "General") {
+		t.Errorf("expected chat details, got: %s", out)
+	}
+}
+
+func TestChatsList_All_JSON(t *testing.T) {
+	chats := []botapi.ChatInfo{
+		{GroupChatID: "chat-1", Name: "General", ChatType: chatTypeGroup, Members: []string{"a"}},
+	}
+	srv := newChatsListServer(t, chats)
+	defer srv.Close()
+
+	cfgPath := writeTestConfig(t, fmt.Sprintf(`
+bots:
+  alpha:
+    host: %s
+    id: id-alpha
+    token: test-token
+`, srv.URL))
+
+	deps, stdout, _ := testDeps()
+	err := runChatsList([]string{"--config", cfgPath, "--all", "--format", "json"}, deps)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	out := stdout.String()
+	if !strings.Contains(out, `"bot_name"`) {
+		t.Errorf("expected bot_name field in JSON, got: %s", out)
+	}
+	if !strings.Contains(out, `"group_chat_id"`) {
+		t.Errorf("expected group_chat_id field in JSON, got: %s", out)
+	}
+
+	var entries []chatsListEntry
+	if err := json.Unmarshal(stdout.Bytes(), &entries); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if len(entries) != 1 || entries[0].BotName != "alpha" || entries[0].GroupChatID != "chat-1" {
+		t.Errorf("unexpected JSON entries: %+v", entries)
+	}
+}
+
+func TestChatsList_All_WithBotFlag_Error(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+bots:
+  alpha:
+    host: h
+    id: b
+    token: t
+`)
+	deps, _, _ := testDeps()
+	err := runChatsList([]string{"--config", cfgPath, "--all", "--bot", "alpha"}, deps)
+	if err == nil {
+		t.Fatal("expected error for --all with --bot")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("expected mutually exclusive error, got: %v", err)
+	}
+}
+
+func TestChatsList_All_EmptyConfig(t *testing.T) {
+	cfgPath := writeTestConfig(t, `{}`)
+	deps, _, _ := testDeps()
+	err := runChatsList([]string{"--config", cfgPath, "--all"}, deps)
+	if err == nil {
+		t.Fatal("expected error for empty config with --all")
+	}
+	if !strings.Contains(err.Error(), "no bots configured") {
+		t.Errorf("expected 'no bots configured' error, got: %v", err)
+	}
+}
+
+func TestChatsList_All_PartialFailure(t *testing.T) {
+	chats := []botapi.ChatInfo{
+		{GroupChatID: "chat-1", Name: "General", ChatType: chatTypeGroup, Members: []string{"a"}},
+	}
+	srv := newChatsListServer(t, chats)
+	defer srv.Close()
+
+	cfgPath := writeTestConfig(t, fmt.Sprintf(`
+bots:
+  good:
+    host: %s
+    id: id-good
+    token: test-token
+  bad:
+    host: http://unreachable.invalid
+    id: id-bad
+    token: bad-token
+`, srv.URL))
+
+	deps, stdout, _ := testDeps()
+	err := runChatsList([]string{"--config", cfgPath, "--all"}, deps)
+	if err == nil {
+		t.Fatal("expected error for partial failure")
+	}
+	if !strings.Contains(err.Error(), "one or more bots failed") {
+		t.Errorf("expected 'one or more bots failed' error, got: %v", err)
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "good:") {
+		t.Errorf("expected good bot in output, got: %s", out)
+	}
+	if !strings.Contains(out, "bad:") {
+		t.Errorf("expected bad bot in output, got: %s", out)
+	}
+	if !strings.Contains(out, "chat-1") {
+		t.Errorf("expected successful bot's chats, got: %s", out)
+	}
+}
+
+func TestChatsList_All_Shorthand(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+bots:
+  only:
+    host: only.example.com
+    id: id-only
+    token: tok-only
+`)
+	deps, stdout, _ := testDeps()
+	// Will fail at API call but should parse -A flag
+	_ = runChatsList([]string{"--config", cfgPath, "-A"}, deps)
+	out := stdout.String()
+	if !strings.Contains(out, "only:") {
+		t.Errorf("expected bot name in output (via -A shorthand), got: %s", out)
+	}
+}
+
 func newChatsListServer(t *testing.T, chats []botapi.ChatInfo) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()

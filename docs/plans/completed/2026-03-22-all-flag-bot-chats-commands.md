@@ -90,14 +90,14 @@ The --all commands need to iterate bots and create a resolved Config per bot. Ad
 - Modify: `internal/cmd/chats.go`
 - Modify: `internal/cmd/chats_test.go`
 
-- [ ] Add --all / -A bool flag to runChatsList
-- [ ] When --all is set: use LoadMinimal, iterate bots, authenticate each, call ListChats for each, collect results with bot name annotation
-- [ ] Text output: grouped by bot name, or flat table with Bot column
-- [ ] JSON output: array of objects with bot_name field added to each chat entry
-- [ ] Non-zero exit code if any bot failed (but show chats from successful bots)
-- [ ] Validate --all is mutually exclusive with --bot/--host/--bot-id/--secret/--token
-- [ ] Write tests for --all chats list
-- [ ] Run project test suite - must pass before task 6
+- [x] Add --all / -A bool flag to runChatsList
+- [x] When --all is set: use LoadMinimal, iterate bots, authenticate each, call ListChats for each, collect results with bot name annotation
+- [x] Text output: grouped by bot name, or flat table with Bot column
+- [x] JSON output: array of objects with bot_name field added to each chat entry
+- [x] Non-zero exit code if any bot failed (but show chats from successful bots)
+- [x] Validate --all is mutually exclusive with --bot/--host/--bot-id/--secret/--token
+- [x] Write tests for --all chats list
+- [x] Run project test suite - must pass before task 6
 
 ### Task 6: chats import --all
 
