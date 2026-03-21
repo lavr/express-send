@@ -36,15 +36,15 @@ Extend the Makefile with standard Go development targets (test, lint, fmt, race,
 **Files:**
 - Create: `.zed/tasks.json`
 
-- [ ] Add "build" task running `make build`
-- [ ] Add "test: all" task running `make test`
-- [ ] Add "test: race" task running `make race`
-- [ ] Add "lint" task running `make lint`
-- [ ] Add "fmt" task running `make fmt`
-- [ ] Add "docker: build" task running `make docker-build`
-- [ ] Add "run: serve" task running `go run . serve` for local development
-- [ ] All tasks use `$ZED_WORKTREE_ROOT` as cwd, `use_new_terminal: true`, `allow_concurrent_runs: false`
-- [ ] Verify JSON syntax is valid
+- [x] Add "build" task running `make build`
+- [x] Add "test: all" task running `make test`
+- [x] Add "test: race" task running `make race`
+- [x] Add "lint" task running `make lint`
+- [x] Add "fmt" task running `make fmt`
+- [x] Add "docker: build" task running `make docker-build`
+- [x] Add "run: serve" task running `go run . serve` for local development
+- [x] All tasks use `$ZED_WORKTREE_ROOT` as cwd, `use_new_terminal: true`, `allow_concurrent_runs: false`
+- [x] Verify JSON syntax is valid
 
 ### Task 3: Verify acceptance criteria
 
