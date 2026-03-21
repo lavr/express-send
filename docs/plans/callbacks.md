@@ -282,10 +282,10 @@ go test ./internal/server/ -run TestVerifyCallbackJWT -v
 
 ### 4.2 JWT claims валидация
 
-- [ ] Проверка `exp` — не просрочен
-- [ ] Проверка `nbf` — уже валиден
-- [ ] Проверка `aud` — совпадает с известным bot_id
-- [ ] Reject неподписанных JWT (alg: none)
+- [x] Проверка `exp` — не просрочен
+- [x] Проверка `nbf` — уже валиден
+- [x] Проверка `aud` — совпадает с известным bot_id
+- [x] Reject неподписанных JWT (alg: none)
 
 ```
 go test ./internal/server/ -run TestJWTClaims -v

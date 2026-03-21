@@ -195,6 +195,154 @@ func TestVerifyCallbackJWT(t *testing.T) {
 	})
 }
 
+func TestJWTClaims(t *testing.T) {
+	const botID = "bot-123"
+	const secret = "my-secret-key"
+
+	lookup := func(id string) (string, error) {
+		if id == botID {
+			return secret, nil
+		}
+		return "", fmt.Errorf("unknown bot: %s", id)
+	}
+
+	t.Run("exp expired rejects token", func(t *testing.T) {
+		token := makeJWT(
+			map[string]any{"alg": "HS256"},
+			map[string]any{"aud": botID, "exp": time.Now().Unix() - 60},
+			secret,
+		)
+		_, err := verifyCallbackJWT(token, lookup)
+		if !errors.Is(err, errJWTExpired) {
+			t.Fatalf("expected errJWTExpired, got: %v", err)
+		}
+	})
+
+	t.Run("exp in future accepts token", func(t *testing.T) {
+		token := makeJWT(
+			map[string]any{"alg": "HS256"},
+			map[string]any{"aud": botID, "exp": time.Now().Unix() + 3600},
+			secret,
+		)
+		claims, err := verifyCallbackJWT(token, lookup)
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+		if claims.Aud != botID {
+			t.Fatalf("expected aud=%s, got %s", botID, claims.Aud)
+		}
+	})
+
+	t.Run("nbf in future rejects token", func(t *testing.T) {
+		token := makeJWT(
+			map[string]any{"alg": "HS256"},
+			map[string]any{"aud": botID, "nbf": time.Now().Unix() + 3600},
+			secret,
+		)
+		_, err := verifyCallbackJWT(token, lookup)
+		if !errors.Is(err, errJWTNotYetValid) {
+			t.Fatalf("expected errJWTNotYetValid, got: %v", err)
+		}
+	})
+
+	t.Run("nbf in past accepts token", func(t *testing.T) {
+		token := makeJWT(
+			map[string]any{"alg": "HS256"},
+			map[string]any{"aud": botID, "nbf": time.Now().Unix() - 60},
+			secret,
+		)
+		claims, err := verifyCallbackJWT(token, lookup)
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+		if claims.Aud != botID {
+			t.Fatalf("expected aud=%s, got %s", botID, claims.Aud)
+		}
+	})
+
+	t.Run("aud must match known bot_id", func(t *testing.T) {
+		token := makeJWT(
+			map[string]any{"alg": "HS256"},
+			map[string]any{"aud": "unknown-bot-456"},
+			secret,
+		)
+		_, err := verifyCallbackJWT(token, lookup)
+		if err == nil {
+			t.Fatal("expected error for unknown bot_id in aud")
+		}
+		if !contains(err.Error(), "unknown bot") {
+			t.Fatalf("expected 'unknown bot' error, got: %v", err)
+		}
+	})
+
+	t.Run("aud missing rejects token", func(t *testing.T) {
+		token := makeJWT(
+			map[string]any{"alg": "HS256"},
+			map[string]any{"sub": "test"},
+			secret,
+		)
+		_, err := verifyCallbackJWT(token, lookup)
+		if !errors.Is(err, errJWTMissingAud) {
+			t.Fatalf("expected errJWTMissingAud, got: %v", err)
+		}
+	})
+
+	t.Run("alg none rejected", func(t *testing.T) {
+		hdr, _ := json.Marshal(map[string]any{"alg": "none"})
+		clm, _ := json.Marshal(map[string]any{"aud": botID})
+		token := base64.RawURLEncoding.EncodeToString(hdr) + "." +
+			base64.RawURLEncoding.EncodeToString(clm) + "."
+
+		_, err := verifyCallbackJWT(token, lookup)
+		if !errors.Is(err, errJWTAlgNone) {
+			t.Fatalf("expected errJWTAlgNone, got: %v", err)
+		}
+	})
+
+	t.Run("alg None case insensitive rejected", func(t *testing.T) {
+		hdr, _ := json.Marshal(map[string]any{"alg": "None"})
+		clm, _ := json.Marshal(map[string]any{"aud": botID})
+		token := base64.RawURLEncoding.EncodeToString(hdr) + "." +
+			base64.RawURLEncoding.EncodeToString(clm) + "."
+
+		_, err := verifyCallbackJWT(token, lookup)
+		if !errors.Is(err, errJWTAlgNone) {
+			t.Fatalf("expected errJWTAlgNone for 'None', got: %v", err)
+		}
+	})
+
+	t.Run("exp and nbf both valid", func(t *testing.T) {
+		now := time.Now().Unix()
+		token := makeJWT(
+			map[string]any{"alg": "HS256"},
+			map[string]any{"aud": botID, "exp": now + 300, "nbf": now - 60},
+			secret,
+		)
+		claims, err := verifyCallbackJWT(token, lookup)
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+		if claims.Aud != botID {
+			t.Fatalf("expected aud=%s, got %s", botID, claims.Aud)
+		}
+	})
+
+	t.Run("exp boundary exactly now rejects", func(t *testing.T) {
+		// exp = now means now > exp is false (now == exp), so token should still be valid
+		now := time.Now().Unix()
+		token := makeJWT(
+			map[string]any{"alg": "HS256"},
+			map[string]any{"aud": botID, "exp": now},
+			secret,
+		)
+		// exp==now: now > exp is false, so token is valid (not expired)
+		_, err := verifyCallbackJWT(token, lookup)
+		if err != nil {
+			t.Fatalf("expected token with exp=now to be valid, got: %v", err)
+		}
+	})
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && searchSubstring(s, substr)
 }
