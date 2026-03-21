@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
@@ -249,7 +250,7 @@ func runConfigEdit(args []string, deps Deps) error {
 			return fmt.Errorf("reading edited file: %w", err)
 		}
 
-		if string(newData) == string(original) {
+		if bytes.Equal(newData, original) {
 			fmt.Fprintln(deps.Stderr, "Edit cancelled, no changes made")
 			return nil
 		}
@@ -287,7 +288,7 @@ func runConfigEdit(args []string, deps Deps) error {
 			fmt.Fprintf(deps.Stderr, "Your edits are preserved at: %s\n", tmpFile)
 			return fmt.Errorf("reading config for conflict check: %w", err)
 		}
-		if string(currentData) != string(original) {
+		if !bytes.Equal(currentData, original) {
 			cleanupTmp = false
 			fmt.Fprintf(deps.Stderr, "Config file was modified externally while editing, aborting to avoid data loss\n")
 			fmt.Fprintf(deps.Stderr, "Your edits are preserved at: %s\n", tmpFile)
@@ -307,7 +308,7 @@ func runConfigEdit(args []string, deps Deps) error {
 		configDir := filepath.Dir(resolvedConfigPath)
 		atomicTmp, atomicErr := os.CreateTemp(configDir, ".config-*.yaml.tmp")
 		if atomicErr != nil {
-			if !errors.Is(atomicErr, os.ErrPermission) {
+			if !os.IsPermission(atomicErr) {
 				return saveErr(fmt.Errorf("creating temp file for atomic write: %w", atomicErr))
 			}
 			// Directory not writable; fall back to direct write.
