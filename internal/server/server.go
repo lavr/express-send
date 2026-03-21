@@ -50,9 +50,10 @@ type Server struct {
 	chatEntries []config.ChatEntry // for GET /chats/alias/list
 	amCfg          *AlertmanagerConfig
 	grCfg          *GrafanaConfig
-	callbackRouter *CallbackRouter
-	callbacksCfg   *config.CallbacksConfig
-	srv            *http.Server
+	callbackRouter       *CallbackRouter
+	callbacksCfg         *config.CallbacksConfig
+	callbackSecretLookup func(botID string) (string, error)
+	srv                  *http.Server
 }
 
 // SendFunc sends a message via the BotX API. The server calls this for each request.
@@ -103,6 +104,7 @@ type CallbackOption func(*callbackOptions)
 
 type callbackOptions struct {
 	customHandlers map[string]CallbackHandler
+	secretLookup   func(botID string) (string, error)
 }
 
 // WithCallbackHandler registers a custom CallbackHandler that can be referenced
@@ -114,6 +116,14 @@ func WithCallbackHandler(handler CallbackHandler) CallbackOption {
 			o.customHandlers = make(map[string]CallbackHandler)
 		}
 		o.customHandlers[handler.Type()] = handler
+	}
+}
+
+// WithCallbackSecretLookup sets the function used to look up bot secrets for JWT
+// verification in callback endpoints. Required when verify_jwt is enabled.
+func WithCallbackSecretLookup(fn func(botID string) (string, error)) CallbackOption {
+	return func(o *callbackOptions) {
+		o.secretLookup = fn
 	}
 }
 
@@ -147,6 +157,7 @@ func WithCallbacks(cfg config.CallbacksConfig, opts ...CallbackOption) Option {
 
 		s.callbackRouter = router
 		s.callbacksCfg = &cfg
+		s.callbackSecretLookup = co.secretLookup
 	}
 }
 
@@ -226,6 +237,29 @@ func New(cfg Config, sendFn SendFunc, chatResolver ChatResolver, opts ...Option)
 			chatInfo = "from ?chat_id param"
 		}
 		vlog.Info("server: grafana endpoint enabled (chat: %s)", chatInfo)
+	}
+
+	if s.callbackRouter != nil && s.callbacksCfg != nil {
+		cbBase := strings.TrimRight(s.callbacksCfg.BasePath, "/")
+		if cbBase == "" {
+			cbBase = base
+		}
+
+		verifyJWT := true
+		if s.callbacksCfg.VerifyJWT != nil {
+			verifyJWT = *s.callbacksCfg.VerifyJWT
+		}
+
+		cbCommand := http.Handler(http.HandlerFunc(s.handleCommand))
+		cbNotification := http.Handler(http.HandlerFunc(s.handleNotificationCallback))
+
+		cbCommand = callbackJWTMiddleware(cbCommand, s.callbackSecretLookup, verifyJWT)
+		cbNotification = callbackJWTMiddleware(cbNotification, s.callbackSecretLookup, verifyJWT)
+
+		mux.Handle(fmt.Sprintf("POST %s/command", cbBase), s.apm.WrapHandler("POST /command", cbCommand))
+		mux.Handle(fmt.Sprintf("POST %s/notification/callback", cbBase), s.apm.WrapHandler("POST /notification/callback", cbNotification))
+
+		vlog.Info("server: callback endpoints enabled (base_path: %s, verify_jwt: %v, rules: %d)", cbBase, verifyJWT, len(s.callbacksCfg.Rules))
 	}
 
 	var handler http.Handler = mux

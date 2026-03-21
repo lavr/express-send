@@ -364,11 +364,11 @@ go build ./internal/server/
 
 ### 6.2 Регистрация эндпоинтов в Server.New
 
-- [ ] Если callbacks сконфигурированы — зарегистрировать
+- [x] Если callbacks сконфигурированы — зарегистрировать
   `POST <callbacks_base_path>/command` и
   `POST <callbacks_base_path>/notification/callback`
-- [ ] JWT middleware оборачивает оба эндпоинта (если verify_jwt)
-- [ ] Без callbacks в конфиге — эндпоинты не регистрируются
+- [x] JWT middleware оборачивает оба эндпоинта (если verify_jwt)
+- [x] Без callbacks в конфиге — эндпоинты не регистрируются
 
 ```
 go build ./... && go test ./internal/server/ -run TestServerWithCallbacks -v
