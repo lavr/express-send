@@ -54,7 +54,7 @@ Add a second `docker/build-push-action` step for the rootless variant with `-roo
 
 ### Task 4: Verify acceptance criteria
 
-- [ ] `docker build --target rootless -t test-rootless .` succeeds
-- [ ] `docker build --target alpine -t test-alpine .` succeeds
-- [ ] `helm template charts/express-botx` renders the rootless image tag by default
-- [ ] `helm template --set image.tag=0.30.1 charts/express-botx` can override to alpine variant
+- [x] `docker build --target rootless -t test-rootless .` succeeds
+- [x] `docker build --target alpine -t test-alpine .` succeeds
+- [x] `helm template charts/express-botx` renders the rootless image tag by default
+- [x] `helm template --set image.tag=0.30.1 charts/express-botx` can override to alpine variant
