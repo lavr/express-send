@@ -425,10 +425,10 @@ go test ./internal/server/ -run TestAsyncPanicRecovery -v
 
 ### 8.1 OpenAPI-спецификация
 
-- [ ] Добавить в `internal/server/api/openapi.yaml`:
+- [x] Добавить в `internal/server/api/openapi.yaml`:
   `POST /command` — request body (CallbackPayload), response 202
-- [ ] Добавить `POST /notification/callback` — request body, response 200
-- [ ] Схемы: CallbackPayload, NotificationCallbackPayload
+- [x] Добавить `POST /notification/callback` — request body, response 200
+- [x] Схемы: CallbackPayload, NotificationCallbackPayload
 
 ```
 # Визуально: запуск serve с docs, открыть /docs/
