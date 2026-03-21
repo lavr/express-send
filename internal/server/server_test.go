@@ -71,6 +71,26 @@ func parseResponse(t *testing.T, w *httptest.ResponseRecorder) sendResponse {
 	return resp
 }
 
+// --- middleware ---
+
+func TestRequestID_Generated(t *testing.T) {
+	srv := newTestServer([]ResolvedKey{{Name: "t", Key: "k"}})
+	w := doRequest(srv, "GET", "/healthz", nil, nil)
+	if id := w.Header().Get("X-Request-Id"); id == "" {
+		t.Fatal("expected X-Request-Id header to be set on response")
+	}
+}
+
+func TestRequestID_Preserved(t *testing.T) {
+	srv := newTestServer([]ResolvedKey{{Name: "t", Key: "k"}})
+	w := doRequest(srv, "GET", "/healthz", nil, map[string]string{
+		"X-Request-Id": "custom-id-123",
+	})
+	if got := w.Header().Get("X-Request-Id"); got != "custom-id-123" {
+		t.Fatalf("expected X-Request-Id %q, got %q", "custom-id-123", got)
+	}
+}
+
 // --- healthz ---
 
 func TestHealthz(t *testing.T) {
@@ -82,6 +102,41 @@ func TestHealthz(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), `"ok":true`) {
 		t.Fatalf("unexpected body: %s", w.Body.String())
+	}
+}
+
+// --- HEAD support (middleware.GetHead) ---
+
+func TestHEAD_Healthz(t *testing.T) {
+	srv := newTestServer([]ResolvedKey{{Name: "test", Key: "key1"}})
+	w := doRequest(srv, "HEAD", "/healthz", nil, nil)
+
+	// Without middleware.GetHead this would return 405.
+	if w.Code != 200 {
+		t.Fatalf("HEAD /healthz: expected 200, got %d", w.Code)
+	}
+}
+
+func TestHEAD_AuthenticatedRoute(t *testing.T) {
+	srv := newTestServer([]ResolvedKey{{Name: "test", Key: "key1"}})
+	w := doRequest(srv, "HEAD", "/api/v1/bot/list", nil, map[string]string{"X-API-Key": "key1"})
+
+	// Without middleware.GetHead this would return 405.
+	if w.Code != 200 {
+		t.Fatalf("HEAD /api/v1/bot/list: expected 200, got %d", w.Code)
+	}
+}
+
+func TestHEAD_Docs(t *testing.T) {
+	srv := newTestServer([]ResolvedKey{{Name: "t", Key: "k"}}, func(c *Config) {
+		c.EnableDocs = true
+	})
+
+	w := doRequest(srv, "HEAD", "/docs/", nil, nil)
+	// The mounted stdlib ServeMux already handles HEAD for GET routes,
+	// so this works independently of middleware.GetHead.
+	if w.Code != 200 {
+		t.Fatalf("HEAD /docs/: expected 200, got %d", w.Code)
 	}
 }
 
