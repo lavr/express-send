@@ -67,47 +67,19 @@ srvOpts = append(srvOpts, server.WithGrafana(grCfg))
 
 Функции `buildAlertmanagerConfig` / `buildGrafanaConfig` уже корректно подставляют дефолтные template и severity/states — изменения внутри них не нужны.
 
-### 2. `internal/server/server.go` — убрать nil-гейты при регистрации маршрутов
+### 2. `internal/server/server.go` — условная регистрация маршрутов сохранена
 
-**Было:**
-```go
-if s.amCfg != nil {
-    route("POST", "/alertmanager", s.handleAlertmanager)
-    ...
-}
+Nil-гейты `if s.amCfg != nil` / `if s.grCfg != nil` при регистрации маршрутов **сохранены**. Поскольку `serve.go` теперь всегда вызывает `WithAlertmanager`/`WithGrafana`, маршруты всегда регистрируются в режиме `serve`. В режиме `enqueue` (где эти опции не передаются) маршруты не регистрируются — сохраняется чистый 404.
 
-if s.grCfg != nil {
-    route("POST", "/grafana", s.handleGrafana)
-    ...
-}
-```
-
-**Стало:** маршруты регистрируются безусловно. `amCfg`/`grCfg` гарантированно не-nil, т.к. `WithAlertmanager`/`WithGrafana` вызываются всегда.
-
-```go
-route("POST", "/alertmanager", s.handleAlertmanager)
-chatInfo := "from ?chat_id param"
-if s.amCfg != nil && s.amCfg.DefaultChatID != "" {
-    chatInfo = s.amCfg.DefaultChatID
-} else if s.amCfg != nil && s.amCfg.FallbackChatID != "" {
-    chatInfo = s.amCfg.FallbackChatID
-} else if cfg.DefaultChatAlias != "" {
-    chatInfo = cfg.DefaultChatAlias
-}
-vlog.Info("server: alertmanager endpoint enabled (chat: %s)", chatInfo)
-
-route("POST", "/grafana", s.handleGrafana)
-// аналогичный блок для grafana
-```
+Обновлена логика вывода chatInfo в лог: показывается resolved chat или `"from ?chat_id param"` если чат не задан.
 
 ### 3. `internal/server/handler_alertmanager.go` / `handler_grafana.go` — nil-check остаётся
 
-Guard `if s.amCfg == nil` / `if s.grCfg == nil` в хендлерах остаётся как safety net. В основном flow он не сработает, но защитит library-пользователей, которые создают `Server` без `WithAlertmanager`.
+Guard `if s.amCfg == nil` / `if s.grCfg == nil` в хендлерах остаётся как safety net на случай если library-пользователь зарегистрирует маршрут вручную.
 
 ### 4. Тесты
 
-- **`TestAlertmanager_NotConfigured`** — удалить или переписать. Маршрут теперь всегда зарегистрирован. Новый тест: сервер без `WithAlertmanager` option (library use-case) возвращает 500 с сообщением "alertmanager not configured".
-- **`TestGrafana_NotConfigured`** — аналогично.
+- **`TestAlertmanager_NotConfigured`** / **`TestGrafana_NotConfigured`** — без изменений. Сервер без `WithAlertmanager`/`WithGrafana` по-прежнему не регистрирует маршруты (404/405).
 - Существующие тесты с `WithAlertmanager(amCfg)` / `WithGrafana(grCfg)` — без изменений.
 
 ### 5. Документация (`charts/express-botx/values.yaml`)
@@ -119,8 +91,8 @@ Guard `if s.amCfg == nil` / `if s.grCfg == nil` в хендлерах остаё
 | Файл | Изменения |
 |---|---|
 | `internal/cmd/serve.go` | Убрать `if am != nil` / `if gr != nil`, подставлять пустой конфиг |
-| `internal/server/server.go` | Безусловная регистрация маршрутов |
-| `internal/server/server_test.go` | Обновить `TestAlertmanager_NotConfigured`, `TestGrafana_NotConfigured` |
+| `internal/server/server.go` | Обновить chatInfo логику (nil-гейты сохранены) |
+| `internal/server/server_test.go` | Без изменений (поведение для library-пользователей не изменилось) |
 | `charts/express-botx/values.yaml` | Обновить комментарии |
 
 ## Шаги реализации
@@ -128,10 +100,10 @@ Guard `if s.amCfg == nil` / `if s.grCfg == nil` в хендлерах остаё
 - [x] **Шаг 1.** `internal/cmd/serve.go` — убрать nil-гейты для alertmanager и grafana, подставлять пустой конфиг когда секция отсутствует.
   - **Проверка:** `go build ./...` компилируется без ошибок. Запуск с конфигом без секций `alertmanager`/`grafana` — в логах появляются строки `alertmanager endpoint enabled` и `grafana endpoint enabled`.
 
-- [x] **Шаг 2.** `internal/server/server.go` — регистрировать маршруты `/alertmanager` и `/grafana` безусловно (убрать `if s.amCfg != nil` / `if s.grCfg != nil`).
+- [x] **Шаг 2.** `internal/server/server.go` — обновить chatInfo логику. Nil-гейты при регистрации маршрутов сохранены: `serve.go` всегда передаёт `WithAlertmanager`/`WithGrafana`, поэтому в режиме `serve` маршруты всегда регистрируются. В режиме `enqueue` — чистый 404.
   - **Проверка:** `go vet ./...` без ошибок. Сервер без секций в конфиге отвечает на `POST /api/v1/alertmanager` и `POST /api/v1/grafana` (не 404).
 
-- [x] **Шаг 3.** `internal/server/server_test.go` — обновить тесты `TestAlertmanager_NotConfigured` и `TestGrafana_NotConfigured`: маршрут теперь зарегистрирован, сервер без `WithAlertmanager`/`WithGrafana` option возвращает 500 с телом `"alertmanager not configured"` / `"grafana not configured"`.
+- [x] **Шаг 3.** `internal/server/server_test.go` — тесты `TestAlertmanager_NotConfigured` и `TestGrafana_NotConfigured` без изменений (library-пользователи по-прежнему получают 404/405).
   - **Проверка:** `go test ./internal/server/ -run 'NotConfigured' -v` — оба теста проходят.
 
 - [x] **Шаг 4.** Прогнать полный набор тестов — убедиться что существующие тесты не сломались.
@@ -148,4 +120,4 @@ Guard `if s.amCfg == nil` / `if s.grCfg == nil` в хендлерах остаё
 Полностью обратно совместимо:
 - Пользователи с явной секцией `alertmanager`/`grafana` — поведение не меняется
 - Пользователи без секции — получают работающие endpoints с дефолтным шаблоном
-- Library-пользователи (`server.New()` без `WithAlertmanager`) — хендлер возвращает 500, как и раньше
+- Library-пользователи (`server.New()` без `WithAlertmanager`) — маршрут не регистрируется, 404 как и раньше
