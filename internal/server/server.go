@@ -207,10 +207,9 @@ func New(cfg Config, sendFn SendFunc, chatResolver ChatResolver, opts ...Option)
 			next.ServeHTTP(w, req)
 		})
 	})
-	middleware.DefaultLogger = middleware.RequestLogger(
+	r.Use(middleware.RequestLogger(
 		&middleware.DefaultLogFormatter{Logger: log.New(os.Stderr, "", log.LstdFlags), NoColor: true},
-	)
-	r.Use(middleware.Logger)
+	))
 
 	base := strings.TrimRight(cfg.BasePath, "/")
 
