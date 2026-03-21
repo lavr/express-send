@@ -200,9 +200,9 @@ go test ./internal/server/ -run TestExecHandler -v
 
 ### 2.3 ExecHandler — логирование и ошибки
 
-- [ ] Capture stdout/stderr внешней команды → `vlog.Debug` / `vlog.Warn`
-- [ ] Ненулевой exit code → error с содержимым stderr
-- [ ] Timeout → context.DeadlineExceeded → kill процесса
+- [x] Capture stdout/stderr внешней команды → `vlog.Debug` / `vlog.Warn`
+- [x] Ненулевой exit code → error с содержимым stderr
+- [x] Timeout → context.DeadlineExceeded → kill процесса
 
 ```
 go test ./internal/server/ -run TestExecHandlerTimeout -v

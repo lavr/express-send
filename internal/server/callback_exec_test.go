@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -128,5 +129,54 @@ func TestExecHandler_ZeroTimeout(t *testing.T) {
 	err := h.Handle(context.Background(), EventMessage, []byte(`{}`))
 	if err != nil {
 		t.Fatalf("Handle() unexpected error: %v", err)
+	}
+}
+
+func TestExecHandlerTimeout(t *testing.T) {
+	h := NewExecHandler("sleep 10", 100*time.Millisecond)
+
+	err := h.Handle(context.Background(), EventMessage, []byte(`{}`))
+	if err == nil {
+		t.Fatal("Handle() expected error on timeout")
+	}
+	if !strings.Contains(err.Error(), "timeout exceeded") {
+		t.Errorf("expected timeout error message, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "process killed") {
+		t.Errorf("expected 'process killed' in error message, got: %v", err)
+	}
+}
+
+func TestExecHandlerTimeout_StderrCapture(t *testing.T) {
+	// Command that writes to stderr before hanging.
+	h := NewExecHandler(`echo "error output" >&2; exit 1`, 5*time.Second)
+
+	err := h.Handle(context.Background(), EventMessage, []byte(`{}`))
+	if err == nil {
+		t.Fatal("Handle() expected error")
+	}
+	if !strings.Contains(err.Error(), "error output") {
+		t.Errorf("expected stderr in error, got: %v", err)
+	}
+}
+
+func TestExecHandlerTimeout_StdoutCapture(t *testing.T) {
+	// Command that writes to stdout — should succeed, stdout logged at debug level.
+	h := NewExecHandler(`echo "hello from handler"`, 5*time.Second)
+
+	err := h.Handle(context.Background(), EventMessage, []byte(`{}`))
+	if err != nil {
+		t.Fatalf("Handle() unexpected error: %v", err)
+	}
+}
+
+func TestExecHandlerTimeout_ContextCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	h := NewExecHandler("sleep 10", 0)
+	err := h.Handle(ctx, EventMessage, []byte(`{}`))
+	if err == nil {
+		t.Fatal("Handle() expected error on canceled context")
 	}
 }

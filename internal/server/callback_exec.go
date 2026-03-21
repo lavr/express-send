@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
+
+	vlog "github.com/lavr/express-botx/internal/log"
 )
 
 // ExecHandler runs an external command to handle callback events.
@@ -53,7 +57,8 @@ func (h *ExecHandler) Handle(ctx context.Context, event string, payload []byte) 
 	cmd := exec.CommandContext(ctx, "sh", "-c", h.command)
 	cmd.Stdin = bytes.NewReader(payload)
 
-	var stderr bytes.Buffer
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	// Inherit current environment and add callback metadata.
@@ -70,8 +75,24 @@ func (h *ExecHandler) Handle(ctx context.Context, event string, payload []byte) 
 		)
 	}
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("exec handler %q: %w (stderr: %s)", h.command, err, stderr.String())
+	err := cmd.Run()
+
+	// Log stdout at debug level.
+	if out := strings.TrimSpace(stdout.String()); out != "" {
+		vlog.V2("callback exec %q: stdout: %s", h.command, out)
+	}
+
+	// Log stderr as warning.
+	stderrStr := strings.TrimSpace(stderr.String())
+	if stderrStr != "" {
+		vlog.V1("callback exec %q: stderr: %s", h.command, stderrStr)
+	}
+
+	if err != nil {
+		if ctx.Err() != nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return fmt.Errorf("exec handler %q: timeout exceeded, process killed: %w", h.command, ctx.Err())
+		}
+		return fmt.Errorf("exec handler %q: %w (stderr: %s)", h.command, err, stderrStr)
 	}
 	return nil
 }
