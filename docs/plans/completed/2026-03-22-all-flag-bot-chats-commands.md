@@ -59,14 +59,14 @@ The --all commands need to iterate bots and create a resolved Config per bot. Ad
 - Modify: `internal/cmd/bot.go`
 - Modify: `internal/cmd/cmd_test.go`
 
-- [ ] Add --all / -A bool flag to runBotPing
-- [ ] When --all is set: use LoadMinimal, iterate bots, for each: resolve token, create client, call ListChats, measure time
-- [ ] Text output: one line per bot "botname: OK 123ms" or "botname: FAIL reason"
-- [ ] JSON output: array of objects with name, status, elapsed_ms, error fields
-- [ ] Non-zero exit code if any bot failed
-- [ ] Validate --all is mutually exclusive with --bot/--host/--bot-id/--secret/--token
-- [ ] Write tests for --all ping (success, partial failure, all fail)
-- [ ] Run project test suite - must pass before task 4
+- [x] Add --all / -A bool flag to runBotPing
+- [x] When --all is set: use LoadMinimal, iterate bots, for each: resolve token, create client, call ListChats, measure time
+- [x] Text output: one line per bot "botname: OK 123ms" or "botname: FAIL reason"
+- [x] JSON output: array of objects with name, status, elapsed_ms, error fields
+- [x] Non-zero exit code if any bot failed
+- [x] Validate --all is mutually exclusive with --bot/--host/--bot-id/--secret/--token
+- [x] Write tests for --all ping (success, partial failure, all fail)
+- [x] Run project test suite - must pass before task 4
 
 ### Task 4: bot token --all
 

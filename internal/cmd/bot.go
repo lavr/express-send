@@ -42,9 +42,12 @@ func runBotPing(args []string, deps Deps) error {
 	fs.SetOutput(deps.Stderr)
 	var flags config.Flags
 	var quiet bool
+	var all bool
 
 	globalFlags(fs, &flags)
 	fs.BoolVar(&quiet, "quiet", false, "only exit code, no output")
+	fs.BoolVar(&all, "all", false, "ping all configured bots")
+	fs.BoolVar(&all, "A", false, "ping all configured bots (shorthand)")
 	fs.Usage = func() {
 		fmt.Fprintf(deps.Stderr, "Usage: express-botx bot ping [options]\n\nCheck bot authentication and API connectivity.\n\nOptions:\n")
 		fs.PrintDefaults()
@@ -55,6 +58,10 @@ func runBotPing(args []string, deps Deps) error {
 			return nil
 		}
 		return err
+	}
+
+	if all {
+		return runBotPingAll(flags, quiet, deps)
 	}
 
 	cfg, err := config.Load(flags)
@@ -104,6 +111,103 @@ func runBotPing(args []string, deps Deps) error {
 	elapsed := time.Since(start)
 	if !quiet {
 		fmt.Fprintf(deps.Stdout, "OK %dms\n", elapsed.Milliseconds())
+	}
+	return nil
+}
+
+type botPingResult struct {
+	Name      string `json:"name"`
+	Status    string `json:"status"`
+	ElapsedMs int64  `json:"elapsed_ms"`
+	Error     string `json:"error,omitempty"`
+}
+
+func runBotPingAll(flags config.Flags, quiet bool, deps Deps) error {
+	if perBotFlagsSet(flags) {
+		return fmt.Errorf("--all is mutually exclusive with --bot, --host, --bot-id, --secret, --token")
+	}
+
+	cfg, err := config.LoadMinimal(flags)
+	if err != nil {
+		return err
+	}
+	if err := cfg.ValidateFormat(); err != nil {
+		return err
+	}
+
+	names := cfg.BotNames()
+	if len(names) == 0 {
+		return fmt.Errorf("no bots configured")
+	}
+
+	var results []botPingResult
+	var anyFailed bool
+
+	for _, name := range names {
+		botCfg, err := cfg.ConfigForBot(name)
+		if err != nil {
+			results = append(results, botPingResult{
+				Name:   name,
+				Status: "FAIL",
+				Error:  err.Error(),
+			})
+			anyFailed = true
+			continue
+		}
+
+		start := time.Now()
+		tok, _, authErr := authenticate(botCfg)
+		if authErr != nil {
+			elapsed := time.Since(start)
+			results = append(results, botPingResult{
+				Name:      name,
+				Status:    "FAIL",
+				ElapsedMs: elapsed.Milliseconds(),
+				Error:     authErr.Error(),
+			})
+			anyFailed = true
+			continue
+		}
+
+		client := botapi.NewClient(botCfg.Host, tok, botCfg.HTTPTimeout())
+		_, apiErr := client.ListChats(context.Background())
+		elapsed := time.Since(start)
+
+		if apiErr != nil {
+			results = append(results, botPingResult{
+				Name:      name,
+				Status:    "FAIL",
+				ElapsedMs: elapsed.Milliseconds(),
+				Error:     apiErr.Error(),
+			})
+			anyFailed = true
+			continue
+		}
+
+		results = append(results, botPingResult{
+			Name:      name,
+			Status:    "OK",
+			ElapsedMs: elapsed.Milliseconds(),
+		})
+	}
+
+	if !quiet {
+		printErr := printOutput(deps.Stdout, cfg.Format, func() {
+			for _, r := range results {
+				if r.Error != "" {
+					fmt.Fprintf(deps.Stdout, "%s: FAIL %s\n", r.Name, r.Error)
+				} else {
+					fmt.Fprintf(deps.Stdout, "%s: OK %dms\n", r.Name, r.ElapsedMs)
+				}
+			}
+		}, results)
+		if printErr != nil {
+			return printErr
+		}
+	}
+
+	if anyFailed {
+		return fmt.Errorf("one or more bots failed")
 	}
 	return nil
 }
