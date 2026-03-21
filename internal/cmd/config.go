@@ -184,7 +184,10 @@ func runConfigEdit(args []string, deps Deps) error {
 	configPath := cfg.ConfigPath()
 	info, err := os.Stat(configPath)
 	if err != nil {
-		return fmt.Errorf("config file not found: %s", configPath)
+		if os.IsNotExist(err) {
+			return fmt.Errorf("config file not found: %s", configPath)
+		}
+		return fmt.Errorf("accessing config file: %w", err)
 	}
 	configMode := info.Mode()
 
@@ -214,6 +217,7 @@ func runConfigEdit(args []string, deps Deps) error {
 
 	for {
 		cmd := exec.Command(editorParts[0], append(editorParts[1:], tmpFile)...)
+		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stderr
 		cmd.Stderr = os.Stderr
 
