@@ -538,6 +538,173 @@ func TestExitError(t *testing.T) {
 	}
 }
 
+// --- jq filtering ---
+
+func TestValidateJQ_Valid(t *testing.T) {
+	if err := validateJQ(".foo"); err != nil {
+		t.Errorf("expected valid, got: %v", err)
+	}
+	if err := validateJQ(".result[].name"); err != nil {
+		t.Errorf("expected valid, got: %v", err)
+	}
+	if err := validateJQ(`.[] | select(.status == "ok")`); err != nil {
+		t.Errorf("expected valid, got: %v", err)
+	}
+}
+
+func TestValidateJQ_Invalid(t *testing.T) {
+	if err := validateJQ(".[invalid"); err == nil {
+		t.Error("expected error for invalid expression")
+	}
+	if err := validateJQ(""); err == nil {
+		t.Error("expected error for empty expression")
+	}
+}
+
+func TestApplyJQ_SimpleField(t *testing.T) {
+	var stdout, stderr strings.Builder
+	data := []byte(`{"name":"Alice","age":30}`)
+	err := applyJQ(&stdout, &stderr, data, ".name")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.TrimSpace(stdout.String()) != "Alice" {
+		t.Errorf("expected Alice, got %q", stdout.String())
+	}
+}
+
+func TestApplyJQ_ArrayIteration(t *testing.T) {
+	var stdout, stderr strings.Builder
+	data := []byte(`{"result":[{"name":"a"},{"name":"b"}]}`)
+	err := applyJQ(&stdout, &stderr, data, ".result[].name")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if len(lines) != 2 || lines[0] != "a" || lines[1] != "b" {
+		t.Errorf("expected [a, b], got %v", lines)
+	}
+}
+
+func TestApplyJQ_NumericResult(t *testing.T) {
+	var stdout, stderr strings.Builder
+	data := []byte(`{"count":42}`)
+	err := applyJQ(&stdout, &stderr, data, ".count")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.TrimSpace(stdout.String()) != "42" {
+		t.Errorf("expected 42, got %q", stdout.String())
+	}
+}
+
+func TestApplyJQ_NullResult(t *testing.T) {
+	var stdout, stderr strings.Builder
+	data := []byte(`{"a":1}`)
+	err := applyJQ(&stdout, &stderr, data, ".missing")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.TrimSpace(stdout.String()) != "null" {
+		t.Errorf("expected null, got %q", stdout.String())
+	}
+}
+
+func TestApplyJQ_NonJSONInput(t *testing.T) {
+	var stdout, stderr strings.Builder
+	data := []byte("this is not JSON")
+	err := applyJQ(&stdout, &stderr, data, ".foo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stdout.String() != "this is not JSON" {
+		t.Errorf("expected raw data in stdout, got %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "not valid JSON") {
+		t.Errorf("expected warning in stderr, got %q", stderr.String())
+	}
+}
+
+func TestRunApi_JQFilter(t *testing.T) {
+	ts := apiTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"result":[{"name":"chat1"},{"name":"chat2"}]}`)
+	})
+
+	cfgPath := apiTestConfig(t, ts.URL)
+	deps, stdout, _ := testDeps()
+
+	err := runApi([]string{
+		"--config", cfgPath,
+		"-q", ".result[].name",
+		"/api/v3/chats/list",
+	}, deps)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if len(lines) != 2 || lines[0] != "chat1" || lines[1] != "chat2" {
+		t.Errorf("expected [chat1, chat2], got %v (raw: %q)", lines, stdout.String())
+	}
+}
+
+func TestRunApi_JQFilterNonJSON(t *testing.T) {
+	ts := apiTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprint(w, "plain text response")
+	})
+
+	cfgPath := apiTestConfig(t, ts.URL)
+	deps, stdout, stderr := testDeps()
+
+	err := runApi([]string{
+		"--config", cfgPath,
+		"-q", ".foo",
+		"/api/v3/test",
+	}, deps)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "plain text response") {
+		t.Errorf("expected raw body in stdout: %s", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "not valid JSON") {
+		t.Errorf("expected warning in stderr: %s", stderr.String())
+	}
+}
+
+func TestRunApi_InvalidJQExpression(t *testing.T) {
+	deps, _, _ := testDeps()
+	err := runApi([]string{"-q", ".[invalid", "/api/v3/test"}, deps)
+	if err == nil || !strings.Contains(err.Error(), "invalid jq expression") {
+		t.Errorf("expected invalid jq expression error, got: %v", err)
+	}
+}
+
+func TestRunApi_JQOnNonSuccessResponse(t *testing.T) {
+	ts := apiTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(400)
+		fmt.Fprint(w, `{"error":"bad request","code":400}`)
+	})
+
+	cfgPath := apiTestConfig(t, ts.URL)
+	deps, stdout, _ := testDeps()
+
+	err := runApi([]string{
+		"--config", cfgPath,
+		"-q", ".error",
+		"/api/v3/test",
+	}, deps)
+	var exitErr *ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("expected ExitError, got: %v", err)
+	}
+	if strings.TrimSpace(stdout.String()) != "bad request" {
+		t.Errorf("expected 'bad request', got %q", stdout.String())
+	}
+}
+
 // --- stringSlice ---
 
 func TestStringSlice(t *testing.T) {

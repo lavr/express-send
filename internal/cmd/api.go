@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/itchyny/gojq"
 	"github.com/lavr/express-botx/internal/botapi"
 	"github.com/lavr/express-botx/internal/config"
 	vlog "github.com/lavr/express-botx/internal/log"
@@ -416,17 +417,48 @@ func prettyPrintJSON(w io.Writer, data []byte) {
 }
 
 // validateJQ checks if a jq expression is syntactically valid.
-// Stub for MVP — full validation comes with gojq in the next task.
 func validateJQ(expr string) error {
 	if expr == "" {
 		return fmt.Errorf("empty expression")
 	}
-	return nil
+	_, err := gojq.Parse(expr)
+	return err
 }
 
-// applyJQ applies a jq expression to JSON data.
-// Stub for MVP — full implementation comes with gojq in the next task.
+// applyJQ applies a jq expression to JSON data and writes results to stdout.
+// If data is not valid JSON, writes raw data to stdout and a warning to stderr.
 func applyJQ(stdout io.Writer, stderr io.Writer, data []byte, expr string) error {
-	stdout.Write(data)
+	var input any
+	if err := json.Unmarshal(data, &input); err != nil {
+		stdout.Write(data)
+		fmt.Fprintf(stderr, "warning: response is not valid JSON, showing raw output\n")
+		return nil
+	}
+
+	query, err := gojq.Parse(expr)
+	if err != nil {
+		return fmt.Errorf("invalid jq expression: %w", err)
+	}
+
+	iter := query.Run(input)
+	for {
+		v, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if err, isErr := v.(error); isErr {
+			return fmt.Errorf("jq error: %w", err)
+		}
+		switch val := v.(type) {
+		case string:
+			fmt.Fprintln(stdout, val)
+		default:
+			out, err := json.Marshal(val)
+			if err != nil {
+				return fmt.Errorf("marshaling jq result: %w", err)
+			}
+			fmt.Fprintln(stdout, string(out))
+		}
+	}
 	return nil
 }
