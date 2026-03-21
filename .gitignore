@@ -6,3 +6,6 @@ examples/**/.env
 .claude/
 
 .ralphex/progress/
+
+# ralphex progress logs
+.ralphex/worktrees/
