@@ -174,6 +174,20 @@ receivers:
 
 Подробнее: [docs/integrations.md](docs/integrations.md)
 
+## Разработка
+
+| Команда             | Описание                                 |
+|---------------------|------------------------------------------|
+| `make build`        | Собрать бинарник в dist/                 |
+| `make test`         | Запустить тесты с покрытием и race       |
+| `make lint`         | Запустить golangci-lint                  |
+| `make fmt`          | Отформатировать код (goimports)          |
+| `make race`         | Тесты с race-детектором (таймаут 60с)    |
+| `make docker-build` | Собрать Docker-образ                     |
+| `make version`      | Показать текущую версию                  |
+
+Для пользователей Zed: в `.zed/tasks.json` настроены задачи для всех Makefile-целей.
+
 ## Деплой
 
 Приложение собирается в образ `lavr/express-botx`.

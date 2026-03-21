@@ -15,15 +15,16 @@ test:
 lint:
 	golangci-lint run
 
+GO_FILES = $(shell find . -name '*.go' -not -path './vendor/*')
+
 fmt:
-	gofmt -w $(shell find . -name '*.go' -not -path './vendor/*')
-	goimports -w $(shell find . -name '*.go' -not -path './vendor/*')
+	goimports -w $(GO_FILES)
 
 race:
 	go test -race -timeout=60s -tags "$(BUILD_TAGS)" ./...
 
 docker-build:
-	docker build -t $(IMAGE_NAME):$(VERSION) .
+	docker build -t "$(IMAGE_NAME):$(VERSION)" .
 
 version:
-	@echo $(VERSION)
+	@echo "$(VERSION)"
