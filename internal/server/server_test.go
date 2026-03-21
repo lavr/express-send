@@ -579,6 +579,7 @@ func TestAlertmanager_InvalidJSON(t *testing.T) {
 }
 
 func TestAlertmanager_NotConfigured(t *testing.T) {
+	// Route is always registered; without WithAlertmanager the handler returns 500.
 	srv := newTestServerWithOpts([]ResolvedKey{{Name: "t", Key: "k"}})
 
 	body := alertmanagerPayload("firing", AlertItem{
@@ -589,9 +590,11 @@ func TestAlertmanager_NotConfigured(t *testing.T) {
 		"X-API-Key":    "k",
 		"Content-Type": "application/json",
 	})
-	// Route not registered when amCfg is nil, expect 405 (method not allowed) or 404
-	if w.Code == 200 {
-		t.Fatalf("expected non-200 when alertmanager not configured, got 200")
+	if w.Code != 500 {
+		t.Fatalf("expected 500 when alertmanager not configured, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "alertmanager not configured") {
+		t.Fatalf("expected body to contain 'alertmanager not configured', got %s", w.Body.String())
 	}
 }
 
@@ -950,6 +953,7 @@ func TestGrafana_InvalidJSON(t *testing.T) {
 }
 
 func TestGrafana_NotConfigured(t *testing.T) {
+	// Route is always registered; without WithGrafana the handler returns 500.
 	srv := newTestServerWithOpts([]ResolvedKey{{Name: "t", Key: "k"}})
 
 	body := grafanaPayload("firing", "alerting", "test", GrafanaAlertItem{
@@ -960,8 +964,11 @@ func TestGrafana_NotConfigured(t *testing.T) {
 		"X-API-Key":    "k",
 		"Content-Type": "application/json",
 	})
-	if w.Code == 200 {
-		t.Fatalf("expected non-200 when grafana not configured, got 200")
+	if w.Code != 500 {
+		t.Fatalf("expected 500 when grafana not configured, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "grafana not configured") {
+		t.Fatalf("expected body to contain 'grafana not configured', got %s", w.Body.String())
 	}
 }
 

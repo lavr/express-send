@@ -216,32 +216,28 @@ func New(cfg Config, sendFn SendFunc, chatResolver ChatResolver, opts ...Option)
 	route("GET", "/bot/list", s.handleBotList)
 	route("GET", "/chats/alias/list", s.handleChatsAliasList)
 
-	if s.amCfg != nil {
-		route("POST", "/alertmanager", s.handleAlertmanager)
-		chatInfo := s.amCfg.DefaultChatID
-		if chatInfo == "" {
+	route("POST", "/alertmanager", s.handleAlertmanager)
+	{
+		chatInfo := "from ?chat_id param"
+		if s.amCfg != nil && s.amCfg.DefaultChatID != "" {
+			chatInfo = s.amCfg.DefaultChatID
+		} else if cfg.DefaultChatAlias != "" {
 			chatInfo = cfg.DefaultChatAlias
-		}
-		if chatInfo == "" {
+		} else if s.amCfg != nil && s.amCfg.FallbackChatID != "" {
 			chatInfo = s.amCfg.FallbackChatID
-		}
-		if chatInfo == "" {
-			chatInfo = "from ?chat_id param"
 		}
 		vlog.Info("server: alertmanager endpoint enabled (chat: %s)", chatInfo)
 	}
 
-	if s.grCfg != nil {
-		route("POST", "/grafana", s.handleGrafana)
-		chatInfo := s.grCfg.DefaultChatID
-		if chatInfo == "" {
+	route("POST", "/grafana", s.handleGrafana)
+	{
+		chatInfo := "from ?chat_id param"
+		if s.grCfg != nil && s.grCfg.DefaultChatID != "" {
+			chatInfo = s.grCfg.DefaultChatID
+		} else if cfg.DefaultChatAlias != "" {
 			chatInfo = cfg.DefaultChatAlias
-		}
-		if chatInfo == "" {
+		} else if s.grCfg != nil && s.grCfg.FallbackChatID != "" {
 			chatInfo = s.grCfg.FallbackChatID
-		}
-		if chatInfo == "" {
-			chatInfo = "from ?chat_id param"
 		}
 		vlog.Info("server: grafana endpoint enabled (chat: %s)", chatInfo)
 	}

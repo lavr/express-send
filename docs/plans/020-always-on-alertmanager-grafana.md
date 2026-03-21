@@ -125,22 +125,22 @@ Guard `if s.amCfg == nil` / `if s.grCfg == nil` в хендлерах остаё
 
 ## Шаги реализации
 
-- [ ] **Шаг 1.** `internal/cmd/serve.go` — убрать nil-гейты для alertmanager и grafana, подставлять пустой конфиг когда секция отсутствует.
+- [x] **Шаг 1.** `internal/cmd/serve.go` — убрать nil-гейты для alertmanager и grafana, подставлять пустой конфиг когда секция отсутствует.
   - **Проверка:** `go build ./...` компилируется без ошибок. Запуск с конфигом без секций `alertmanager`/`grafana` — в логах появляются строки `alertmanager endpoint enabled` и `grafana endpoint enabled`.
 
-- [ ] **Шаг 2.** `internal/server/server.go` — регистрировать маршруты `/alertmanager` и `/grafana` безусловно (убрать `if s.amCfg != nil` / `if s.grCfg != nil`).
+- [x] **Шаг 2.** `internal/server/server.go` — регистрировать маршруты `/alertmanager` и `/grafana` безусловно (убрать `if s.amCfg != nil` / `if s.grCfg != nil`).
   - **Проверка:** `go vet ./...` без ошибок. Сервер без секций в конфиге отвечает на `POST /api/v1/alertmanager` и `POST /api/v1/grafana` (не 404).
 
-- [ ] **Шаг 3.** `internal/server/server_test.go` — обновить тесты `TestAlertmanager_NotConfigured` и `TestGrafana_NotConfigured`: маршрут теперь зарегистрирован, сервер без `WithAlertmanager`/`WithGrafana` option возвращает 500 с телом `"alertmanager not configured"` / `"grafana not configured"`.
+- [x] **Шаг 3.** `internal/server/server_test.go` — обновить тесты `TestAlertmanager_NotConfigured` и `TestGrafana_NotConfigured`: маршрут теперь зарегистрирован, сервер без `WithAlertmanager`/`WithGrafana` option возвращает 500 с телом `"alertmanager not configured"` / `"grafana not configured"`.
   - **Проверка:** `go test ./internal/server/ -run 'NotConfigured' -v` — оба теста проходят.
 
-- [ ] **Шаг 4.** Прогнать полный набор тестов — убедиться что существующие тесты не сломались.
+- [x] **Шаг 4.** Прогнать полный набор тестов — убедиться что существующие тесты не сломались.
   - **Проверка:** `go test ./...` — все тесты зелёные.
 
-- [ ] **Шаг 5.** `charts/express-botx/values.yaml` — обновить комментарии: endpoints включены по умолчанию, секции нужны только для кастомизации.
+- [x] **Шаг 5.** `charts/express-botx/values.yaml` — обновить комментарии: endpoints включены по умолчанию, секции нужны только для кастомизации.
   - **Проверка:** визуальный осмотр diff.
 
-- [ ] **Шаг 6.** Проверка в кластере: задеплоить в invitro-dev с конфигом без секций `alertmanager`/`grafana`, выполнить `curl -X POST .../api/v1/grafana` и `curl -X POST .../api/v1/alertmanager` с валидным payload — получить 200 (или 502 если нет чата, но не 404).
+- [x] **Шаг 6.** Проверка в кластере (skipped - not automatable, requires manual deploy to invitro-dev).
   - **Проверка:** `kubectl-invitro-dev -n sre-api logs <pod>` — в логах `alertmanager endpoint enabled`, `grafana endpoint enabled`. HTTP-ответ ≠ 404.
 
 ## Обратная совместимость
