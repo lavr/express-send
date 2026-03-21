@@ -55,6 +55,72 @@ func TestExecHandler_Timeout(t *testing.T) {
 	}
 }
 
+func TestExecHandler_EnvVariables(t *testing.T) {
+	// The command prints env vars so we can verify them.
+	h := NewExecHandler(`env | grep EXPRESS_CALLBACK_`, 5*time.Second)
+
+	payload := []byte(`{
+		"sync_id": "sync-abc-123",
+		"bot_id": "bot-uuid-456",
+		"from": {
+			"user_huid": "user-huid-789",
+			"group_chat_id": "chat-id-012"
+		}
+	}`)
+
+	// Capture stdout to verify env vars.
+	h2 := NewExecHandler(
+		`test "$EXPRESS_CALLBACK_EVENT" = "chat_created" && `+
+			`test "$EXPRESS_CALLBACK_SYNC_ID" = "sync-abc-123" && `+
+			`test "$EXPRESS_CALLBACK_BOT_ID" = "bot-uuid-456" && `+
+			`test "$EXPRESS_CALLBACK_CHAT_ID" = "chat-id-012" && `+
+			`test "$EXPRESS_CALLBACK_USER_HUID" = "user-huid-789"`,
+		5*time.Second,
+	)
+
+	err := h2.Handle(context.Background(), EventChatCreated, payload)
+	if err != nil {
+		t.Fatalf("Handle() error: %v; expected all env vars to be set correctly", err)
+	}
+
+	// Also verify h doesn't error (basic smoke test).
+	err = h.Handle(context.Background(), EventMessage, payload)
+	if err != nil {
+		t.Fatalf("Handle() unexpected error: %v", err)
+	}
+}
+
+func TestExecHandler_EnvVariablesPartialPayload(t *testing.T) {
+	// When payload has only some fields, missing ones should be empty strings.
+	h := NewExecHandler(
+		`test "$EXPRESS_CALLBACK_EVENT" = "notification_callback" && `+
+			`test "$EXPRESS_CALLBACK_SYNC_ID" = "sync-only" && `+
+			`test "$EXPRESS_CALLBACK_BOT_ID" = "" && `+
+			`test "$EXPRESS_CALLBACK_USER_HUID" = ""`,
+		5*time.Second,
+	)
+
+	payload := []byte(`{"sync_id": "sync-only"}`)
+
+	err := h.Handle(context.Background(), EventNotificationCallback, payload)
+	if err != nil {
+		t.Fatalf("Handle() error: %v; expected partial payload to work with empty env vars", err)
+	}
+}
+
+func TestExecHandler_EnvVariablesInvalidJSON(t *testing.T) {
+	// Invalid JSON should still work — env vars just won't include metadata.
+	h := NewExecHandler(
+		`test "$EXPRESS_CALLBACK_EVENT" = "message"`,
+		5*time.Second,
+	)
+
+	err := h.Handle(context.Background(), EventMessage, []byte(`not json`))
+	if err != nil {
+		t.Fatalf("Handle() error: %v; expected invalid JSON to be handled gracefully", err)
+	}
+}
+
 func TestExecHandler_ZeroTimeout(t *testing.T) {
 	// Zero timeout means no deadline is applied.
 	h := NewExecHandler("echo ok", 0)

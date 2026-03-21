@@ -189,9 +189,9 @@ go build ./internal/server/
 
 ### 2.2 ExecHandler — env-переменные
 
-- [ ] Парсинг payload для извлечения метаданных (sync_id, bot_id,
+- [x] Парсинг payload для извлечения метаданных (sync_id, bot_id,
   group_chat_id, user_huid)
-- [ ] Установка env: `EXPRESS_CALLBACK_EVENT`, `EXPRESS_CALLBACK_SYNC_ID`, `EXPRESS_CALLBACK_BOT_ID`,
+- [x] Установка env: `EXPRESS_CALLBACK_EVENT`, `EXPRESS_CALLBACK_SYNC_ID`, `EXPRESS_CALLBACK_BOT_ID`,
   `EXPRESS_CALLBACK_CHAT_ID`, `EXPRESS_CALLBACK_USER_HUID`
 
 ```
