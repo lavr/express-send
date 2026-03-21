@@ -339,6 +339,8 @@ func (s *Server) resolveRequestBot(ctx context.Context, requestBot, chatBot stri
 
 // Run starts the server and blocks until ctx is cancelled. It performs graceful shutdown.
 func (s *Server) Run(ctx context.Context) error {
+	defer s.callbackCancel()
+
 	errCh := make(chan error, 1)
 	go func() {
 		vlog.Info("server: listening on %s (base_path: %s)", s.cfg.Listen, s.cfg.BasePath)

@@ -101,14 +101,15 @@ func verifyCallbackJWT(tokenString string, secretLookup func(botID string) (stri
 		return nil, errJWTSignature
 	}
 
-	// Validate time-based claims.
+	// Validate time-based claims with clock skew tolerance.
+	const clockSkew = 60 // seconds
 	now := time.Now().Unix()
 
-	if claims.Exp != nil && now > *claims.Exp {
+	if claims.Exp != nil && now > *claims.Exp+clockSkew {
 		return nil, errJWTExpired
 	}
 
-	if claims.Nbf != nil && now < *claims.Nbf {
+	if claims.Nbf != nil && now < *claims.Nbf-clockSkew {
 		return nil, errJWTNotYetValid
 	}
 

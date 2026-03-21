@@ -212,7 +212,7 @@ func TestJWTClaims(t *testing.T) {
 	t.Run("exp expired rejects token", func(t *testing.T) {
 		token := makeJWT(
 			map[string]any{"alg": "HS256"},
-			map[string]any{"aud": botID, "exp": time.Now().Unix() - 60},
+			map[string]any{"aud": botID, "exp": time.Now().Unix() - 120},
 			secret,
 		)
 		_, err := verifyCallbackJWT(token, lookup)
@@ -338,7 +338,7 @@ func TestJWTClaims(t *testing.T) {
 			map[string]any{"aud": botID, "exp": now},
 			secret,
 		)
-		// exp==now: now > exp is false, so token is valid (not expired)
+		// exp==now: now > exp+clockSkew is false, so token is valid (within skew tolerance)
 		_, err := verifyCallbackJWT(token, lookup)
 		if err != nil {
 			t.Fatalf("expected token with exp=now to be valid, got: %v", err)
