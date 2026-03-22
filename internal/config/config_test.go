@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestLoad_FromYAML(t *testing.T) {
@@ -2328,4 +2330,362 @@ func TestConfigForBot(t *testing.T) {
 			t.Errorf("Cache.Type = %q, want %q (env should override YAML cache.type: none)", got.Cache.Type, "file")
 		}
 	})
+}
+
+func TestValidate_ValidConfig(t *testing.T) {
+	rawYAML := []byte(`
+bots:
+  main:
+    host: express.example.com
+    id: 00000000-0000-0000-0000-000000000001
+    secret: my-secret
+chats:
+  deploy:
+    id: 00000000-0000-0000-0000-000000000002
+    bot: main
+cache:
+  type: file
+`)
+	var cfg Config
+	if err := yaml.Unmarshal(rawYAML, &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	results := cfg.Validate(rawYAML)
+	if len(results) != 0 {
+		t.Errorf("expected no issues, got %d: %v", len(results), results)
+	}
+}
+
+func TestValidate_UnknownKeys(t *testing.T) {
+	rawYAML := []byte(`
+bots:
+  main:
+    host: express.example.com
+    id: 00000000-0000-0000-0000-000000000001
+    secret: my-secret
+    unknown_field: value
+unknown_top: true
+`)
+	var cfg Config
+	if err := yaml.Unmarshal(rawYAML, &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	results := cfg.Validate(rawYAML)
+
+	warnings := 0
+	unknownPaths := map[string]bool{}
+	for _, r := range results {
+		if r.Level == ValidationWarning && strings.Contains(r.Message, "unknown key") {
+			warnings++
+			unknownPaths[r.Path] = true
+		}
+	}
+	if warnings < 2 {
+		t.Errorf("expected at least 2 unknown key warnings, got %d", warnings)
+	}
+	if !unknownPaths["unknown_top"] {
+		t.Error("expected warning for unknown_top")
+	}
+	if !unknownPaths["bots.main.unknown_field"] {
+		t.Error("expected warning for bots.main.unknown_field")
+	}
+}
+
+func TestValidate_MissingRequiredFields(t *testing.T) {
+	rawYAML := []byte(`
+bots:
+  main:
+    timeout: 10
+`)
+	var cfg Config
+	if err := yaml.Unmarshal(rawYAML, &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	results := cfg.Validate(rawYAML)
+
+	errorPaths := map[string]bool{}
+	for _, r := range results {
+		if r.Level == ValidationError {
+			errorPaths[r.Path] = true
+		}
+	}
+	if !errorPaths["bots.main.host"] {
+		t.Error("expected error for missing bots.main.host")
+	}
+	if !errorPaths["bots.main.id"] {
+		t.Error("expected error for missing bots.main.id")
+	}
+	if !errorPaths["bots.main"] {
+		t.Error("expected error for missing secret/token in bots.main")
+	}
+}
+
+func TestValidate_BotSecretAndToken(t *testing.T) {
+	rawYAML := []byte(`
+bots:
+  main:
+    host: express.example.com
+    id: 00000000-0000-0000-0000-000000000001
+    secret: s
+    token: t
+`)
+	var cfg Config
+	if err := yaml.Unmarshal(rawYAML, &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	results := cfg.Validate(rawYAML)
+
+	found := false
+	for _, r := range results {
+		if r.Level == ValidationError && strings.Contains(r.Message, "both secret and token") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected error for bot with both secret and token")
+	}
+}
+
+func TestValidate_InvalidFormats(t *testing.T) {
+	rawYAML := []byte(`
+bots:
+  main:
+    host: express.example.com
+    id: not-a-uuid
+    secret: s
+chats:
+  deploy:
+    id: also-not-uuid
+producer:
+  routing_mode: invalid
+worker:
+  retry_backoff: not-a-duration
+cache:
+  type: redis
+queue:
+  driver: nats
+  max_file_size: invalid-size
+`)
+	var cfg Config
+	if err := yaml.Unmarshal(rawYAML, &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	results := cfg.Validate(rawYAML)
+
+	errorPaths := map[string]bool{}
+	for _, r := range results {
+		if r.Level == ValidationError {
+			errorPaths[r.Path] = true
+		}
+	}
+
+	expected := []string{
+		"bots.main.id",
+		"chats.deploy.id",
+		"producer.routing_mode",
+		"worker.retry_backoff",
+		"cache.type",
+		"queue.driver",
+		"queue.max_file_size",
+	}
+	for _, p := range expected {
+		if !errorPaths[p] {
+			t.Errorf("expected error for %s", p)
+		}
+	}
+}
+
+func TestValidate_CrossReferences(t *testing.T) {
+	rawYAML := []byte(`
+bots:
+  main:
+    host: express.example.com
+    id: 00000000-0000-0000-0000-000000000001
+    secret: s
+chats:
+  deploy:
+    id: 00000000-0000-0000-0000-000000000002
+    bot: nonexistent
+  alerts:
+    id: 00000000-0000-0000-0000-000000000003
+    default: true
+  staging:
+    id: 00000000-0000-0000-0000-000000000004
+    default: true
+server:
+  alertmanager:
+    default_chat_id: missing_chat
+  grafana:
+    default_chat_id: also_missing
+`)
+	var cfg Config
+	if err := yaml.Unmarshal(rawYAML, &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	results := cfg.Validate(rawYAML)
+
+	errorPaths := map[string]bool{}
+	for _, r := range results {
+		if r.Level == ValidationError {
+			errorPaths[r.Path] = true
+		}
+	}
+
+	if !errorPaths["chats.deploy.bot"] {
+		t.Error("expected error for chats.deploy.bot referencing nonexistent bot")
+	}
+	if !errorPaths["chats"] {
+		t.Error("expected error for multiple default chats")
+	}
+	if !errorPaths["server.alertmanager.default_chat_id"] {
+		t.Error("expected error for alertmanager.default_chat_id referencing unknown chat")
+	}
+	if !errorPaths["server.grafana.default_chat_id"] {
+		t.Error("expected error for grafana.default_chat_id referencing unknown chat")
+	}
+}
+
+func TestValidate_MixedErrorsAndWarnings(t *testing.T) {
+	rawYAML := []byte(`
+bots:
+  main:
+    host: express.example.com
+    id: 00000000-0000-0000-0000-000000000001
+    secret: s
+    extra_field: x
+unknown_section: true
+worker:
+  retry_backoff: bad
+`)
+	var cfg Config
+	if err := yaml.Unmarshal(rawYAML, &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	results := cfg.Validate(rawYAML)
+
+	var errors, warnings int
+	for _, r := range results {
+		switch r.Level {
+		case ValidationError:
+			errors++
+		case ValidationWarning:
+			warnings++
+		}
+	}
+	if errors == 0 {
+		t.Error("expected at least one error")
+	}
+	if warnings == 0 {
+		t.Error("expected at least one warning")
+	}
+}
+
+func TestValidate_SecretRefSkipsUUIDCheck(t *testing.T) {
+	rawYAML := []byte(`
+bots:
+  main:
+    host: express.example.com
+    id: "env:BOT_ID"
+    secret: "vault:path#key"
+chats:
+  deploy:
+    id: "env:CHAT_ID"
+`)
+	var cfg Config
+	if err := yaml.Unmarshal(rawYAML, &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	results := cfg.Validate(rawYAML)
+
+	for _, r := range results {
+		if r.Level == ValidationError && strings.Contains(r.Message, "UUID") {
+			t.Errorf("unexpected UUID error for secret ref: %s: %s", r.Path, r.Message)
+		}
+	}
+}
+
+func TestValidate_DurationFields(t *testing.T) {
+	rawYAML := []byte(`
+bots:
+  main:
+    host: h
+    id: 00000000-0000-0000-0000-000000000001
+    secret: s
+worker:
+  retry_backoff: 5s
+  shutdown_timeout: 30s
+catalog:
+  max_age: 1h
+  publish_interval: 10m
+`)
+	var cfg Config
+	if err := yaml.Unmarshal(rawYAML, &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	results := cfg.Validate(rawYAML)
+
+	for _, r := range results {
+		if r.Level == ValidationError {
+			t.Errorf("unexpected error: %s: %s", r.Path, r.Message)
+		}
+	}
+}
+
+func TestValidate_UnknownCallbackEvent(t *testing.T) {
+	rawYAML := []byte(`
+bots:
+  main:
+    host: h
+    id: 00000000-0000-0000-0000-000000000001
+    secret: s
+server:
+  callbacks:
+    rules:
+      - events: ["messege"]
+        handler:
+          type: exec
+          command: /bin/true
+`)
+	var cfg Config
+	if err := yaml.Unmarshal(rawYAML, &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	results := cfg.Validate(rawYAML)
+
+	found := false
+	for _, r := range results {
+		if r.Level == ValidationWarning && strings.Contains(r.Message, "unknown event") && strings.Contains(r.Message, "messege") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected warning for unknown event 'messege', got results: %v", results)
+	}
+}
+
+func TestValidate_AlertmanagerGrafanaWithUUID(t *testing.T) {
+	// default_chat_id as UUID should not trigger cross-ref error
+	rawYAML := []byte(`
+bots:
+  main:
+    host: h
+    id: 00000000-0000-0000-0000-000000000001
+    secret: s
+server:
+  alertmanager:
+    default_chat_id: 00000000-0000-0000-0000-000000000099
+  grafana:
+    default_chat_id: 00000000-0000-0000-0000-000000000098
+`)
+	var cfg Config
+	if err := yaml.Unmarshal(rawYAML, &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	results := cfg.Validate(rawYAML)
+
+	for _, r := range results {
+		if strings.Contains(r.Path, "default_chat_id") && r.Level == ValidationError {
+			t.Errorf("unexpected error for UUID default_chat_id: %s: %s", r.Path, r.Message)
+		}
+	}
 }

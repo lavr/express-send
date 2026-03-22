@@ -131,6 +131,7 @@ express-botx config chat add --chat-id UUID --alias deploy --bot prod
 express-botx config apikey add --name app1
 express-botx config show
 express-botx config edit
+express-botx config validate
 ```
 
 Полный список команд: [docs/commands.md](docs/commands.md)

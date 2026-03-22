@@ -18,7 +18,7 @@ import (
 func runConfig(args []string, deps Deps) error {
 	if len(args) == 0 {
 		printConfigUsage(deps.Stderr)
-		return fmt.Errorf("subcommand required: bot, chat, apikey, show, edit")
+		return fmt.Errorf("subcommand required: bot, chat, apikey, show, edit, validate")
 	}
 
 	switch args[0] {
@@ -32,6 +32,8 @@ func runConfig(args []string, deps Deps) error {
 		return runConfigShow(args[1:], deps)
 	case "edit":
 		return runConfigEdit(args[1:], deps)
+	case "validate":
+		return runConfigValidate(args[1:], deps)
 	case "--help", "-h":
 		printConfigUsage(deps.Stderr)
 		return nil
@@ -340,15 +342,78 @@ func runConfigEdit(args []string, deps Deps) error {
 	}
 }
 
+func runConfigValidate(args []string, deps Deps) error {
+	fs := flag.NewFlagSet("config validate", flag.ContinueOnError)
+	fs.SetOutput(deps.Stderr)
+	var flags config.Flags
+
+	fs.StringVar(&flags.ConfigPath, "config", "", "path to config file")
+	fs.StringVar(&flags.Format, "format", "", "output format: text or json (default: text)")
+	fs.Usage = func() {
+		fmt.Fprintf(deps.Stderr, "Usage: express-botx config validate [options]\n\nValidate config file: check YAML syntax, known fields, required fields, format correctness, and cross-reference consistency.\n\nOptions:\n")
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(reorderArgs(fs, args)); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+
+	cfg, err := config.LoadMinimal(flags)
+	if err != nil {
+		return err
+	}
+	if err := cfg.ValidateFormat(); err != nil {
+		return err
+	}
+
+	rawYAML, err := os.ReadFile(cfg.ConfigPath())
+	if err != nil {
+		return fmt.Errorf("reading config file: %w", err)
+	}
+
+	results := cfg.Validate(rawYAML)
+
+	var errCount, warnCount int
+	for _, r := range results {
+		if r.Level == config.ValidationError {
+			errCount++
+		} else {
+			warnCount++
+		}
+	}
+
+	if err := printOutput(deps.Stdout, cfg.Format, func() {
+		for _, r := range results {
+			tag := "WARN"
+			if r.Level == config.ValidationError {
+				tag = "ERROR"
+			}
+			fmt.Fprintf(deps.Stdout, "[%s] %s: %s\n", tag, r.Path, r.Message)
+		}
+		fmt.Fprintf(deps.Stdout, "%d errors, %d warnings\n", errCount, warnCount)
+	}, results); err != nil {
+		return err
+	}
+
+	if errCount > 0 {
+		return fmt.Errorf("config validation failed: %d errors found", errCount)
+	}
+	return nil
+}
+
 func printConfigUsage(w io.Writer) {
 	fmt.Fprintf(w, `Usage: express-botx config <command> [options]
 
 Commands:
-  bot     Manage bots (add, rm, list)
-  chat    Manage chat aliases (add, set, rm, list)
-  apikey  Manage server API keys (add, rm, list)
-  show    Show config file location and summary
-  edit    Open config file in editor for manual editing
+  bot       Manage bots (add, rm, list)
+  chat      Manage chat aliases (add, set, rm, list)
+  apikey    Manage server API keys (add, rm, list)
+  show      Show config file location and summary
+  edit      Open config file in editor for manual editing
+  validate  Validate config file offline
 
 Run "express-botx config <command> --help" for details on a specific command.
 `)
