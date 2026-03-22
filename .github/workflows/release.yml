@@ -210,3 +210,11 @@ jobs:
           tags: |
             lavr/express-botx:${{ github.ref_name }}-rootless
             lavr/express-botx:latest-rootless
+
+      - name: Update Docker Hub description
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: lavr/express-botx
+          readme-filepath: ./docs/DOCKERHUB.md
