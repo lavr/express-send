@@ -64,22 +64,6 @@ express-botx send "Привет из express-botx!"
 
 Подробнее: [docs/commands.md](docs/commands.md)
 
-### API-запросы
-
-Отправить произвольный запрос к BotX API:
-
-```bash
-# Список чатов
-express-botx api /api/v3/botx/chats/list
-
-# POST с JSON-телом
-express-botx api -X POST /api/v3/botx/chats/create -f name=test -f chat_type=group_chat
-
-# Фильтрация ответа
-express-botx api /api/v3/botx/chats/list -q '.result[].name'
-```
-
-Больше примеров: [examples/scripts/api-command.sh](examples/scripts/api-command.sh) | Подробнее: [docs/commands.md](docs/commands.md#api)
 
 ### HTTP-сервер (serve)
 
@@ -141,6 +125,23 @@ express-botx config validate
 ```
 
 Полный список команд: [docs/commands.md](docs/commands.md)
+
+### API-запросы
+
+Отправить произвольный запрос к BotX API:
+
+```bash
+# Список чатов
+express-botx api /api/v3/botx/chats/list
+
+# POST с JSON-телом
+express-botx api -X POST /api/v3/botx/chats/create -f name=test -f chat_type=group_chat
+
+# Фильтрация ответа
+express-botx api /api/v3/botx/chats/list -q '.result[].name'
+```
+
+Больше примеров: [examples/scripts/api-command.sh](examples/scripts/api-command.sh) | Подробнее: [docs/commands.md](docs/commands.md#api)
 
 ## Конфигурация
 
