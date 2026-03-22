@@ -20,7 +20,7 @@ lint:
 	golangci-lint run
 
 fmt:
-	find . -name '*.go' -not -path './vendor/*' -not -path './.ralphex/*' -exec goimports -w {} +
+	find . -name '*.go' -not -path './vendor/*' -not -path './.ralphex/*' -exec $(shell go env GOPATH)/bin/goimports -w {} +
 
 race:
 	go test -race -timeout=60s -tags '$(call sq,$(TEST_TAGS))' ./...

@@ -22,7 +22,7 @@ type mockBotxAPI struct {
 }
 
 type capturedSend struct {
-	GroupChatID string          `json:"group_chat_id"`
+	GroupChatID  string `json:"group_chat_id"`
 	Notification *struct {
 		Status   string          `json:"status"`
 		Body     string          `json:"body"`

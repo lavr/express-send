@@ -36,14 +36,14 @@ func ValidateRoutingMode(mode string) error {
 }
 
 type Config struct {
-	Bots    map[string]BotConfig  `yaml:"bots,omitempty"`
-	Chats   map[string]ChatConfig `yaml:"chats,omitempty"`
-	Cache   CacheConfig           `yaml:"cache"`
-	Server  ServerConfig          `yaml:"server,omitempty"`
-	Queue   QueueConfig           `yaml:"queue,omitempty"`
-	Producer ProducerConfig       `yaml:"producer,omitempty"`
-	Worker  WorkerConfig          `yaml:"worker,omitempty"`
-	Catalog CatalogConfig         `yaml:"catalog,omitempty"`
+	Bots     map[string]BotConfig  `yaml:"bots,omitempty"`
+	Chats    map[string]ChatConfig `yaml:"chats,omitempty"`
+	Cache    CacheConfig           `yaml:"cache"`
+	Server   ServerConfig          `yaml:"server,omitempty"`
+	Queue    QueueConfig           `yaml:"queue,omitempty"`
+	Producer ProducerConfig        `yaml:"producer,omitempty"`
+	Worker   WorkerConfig          `yaml:"worker,omitempty"`
+	Catalog  CatalogConfig         `yaml:"catalog,omitempty"`
 
 	// Resolved at runtime (not persisted).
 	Host       string `yaml:"-"`
@@ -61,11 +61,11 @@ type Config struct {
 
 // QueueConfig holds broker connection settings shared between producer and worker.
 type QueueConfig struct {
-	Driver      string `yaml:"driver,omitempty"`      // "rabbitmq" or "kafka"
-	URL         string `yaml:"url,omitempty"`          // broker connection URL
-	Name        string `yaml:"name,omitempty"`         // work queue/topic name
-	ReplyQueue  string `yaml:"reply_queue,omitempty"`  // reply queue/topic name
-	Group       string `yaml:"group,omitempty"`        // consumer group (Kafka)
+	Driver      string `yaml:"driver,omitempty"`        // "rabbitmq" or "kafka"
+	URL         string `yaml:"url,omitempty"`           // broker connection URL
+	Name        string `yaml:"name,omitempty"`          // work queue/topic name
+	ReplyQueue  string `yaml:"reply_queue,omitempty"`   // reply queue/topic name
+	Group       string `yaml:"group,omitempty"`         // consumer group (Kafka)
 	MaxFileSize string `yaml:"max_file_size,omitempty"` // max file size for async mode (default: 1MB)
 }
 
@@ -86,17 +86,17 @@ type WorkerConfig struct {
 type CatalogConfig struct {
 	QueueName       string `yaml:"queue_name,omitempty"`       // catalog queue/topic name
 	CacheFile       string `yaml:"cache_file,omitempty"`       // local cache file path
-	MaxAge          string `yaml:"max_age,omitempty"`           // max age of cached catalog
+	MaxAge          string `yaml:"max_age,omitempty"`          // max age of cached catalog
 	PublishInterval string `yaml:"publish_interval,omitempty"` // how often worker publishes catalog
 	Publish         *bool  `yaml:"publish,omitempty"`          // whether worker publishes catalog (default: true)
 }
 
 // ServerConfig holds HTTP server settings for the "serve" subcommand.
 type ServerConfig struct {
-	Listen             string                `yaml:"listen,omitempty"`
-	BasePath           string                `yaml:"base_path,omitempty"`
-	APIKeys            []APIKeyConfig        `yaml:"api_keys,omitempty"`
-	AllowBotSecretAuth bool                  `yaml:"allow_bot_secret_auth,omitempty"`
+	Listen             string                  `yaml:"listen,omitempty"`
+	BasePath           string                  `yaml:"base_path,omitempty"`
+	APIKeys            []APIKeyConfig          `yaml:"api_keys,omitempty"`
+	AllowBotSecretAuth bool                    `yaml:"allow_bot_secret_auth,omitempty"`
 	Alertmanager       *AlertmanagerYAMLConfig `yaml:"alertmanager,omitempty"`
 	Grafana            *GrafanaYAMLConfig      `yaml:"grafana,omitempty"`
 	Callbacks          *CallbacksConfig        `yaml:"callbacks,omitempty"`
@@ -152,7 +152,7 @@ type BotConfig struct {
 	Host    string `yaml:"host"`
 	ID      string `yaml:"id"`
 	Secret  string `yaml:"secret,omitempty"`
-	Token   string `yaml:"token,omitempty"`  // pre-obtained token (alternative to secret)
+	Token   string `yaml:"token,omitempty"`   // pre-obtained token (alternative to secret)
 	Timeout int    `yaml:"timeout,omitempty"` // HTTP timeout in seconds (default: 10)
 }
 
@@ -184,7 +184,7 @@ func (c ChatConfig) MarshalYAML() (any, error) {
 }
 
 type CacheConfig struct {
-	Type      string `yaml:"type"`       // "none"|"file"|"vault"
+	Type      string `yaml:"type"` // "none"|"file"|"vault"
 	FilePath  string `yaml:"file_path"`
 	VaultURL  string `yaml:"vault_url"`
 	VaultPath string `yaml:"vault_path"`
@@ -858,9 +858,10 @@ func resolveConfigPath(flagPath string) (path string, explicit bool) {
 // findConfigFile searches for a config file in standard locations:
 // 1. ./express-botx.yaml or ./express-botx.yml (current directory)
 // 2. <UserConfigDir>/express-botx/config.yaml (platform-specific)
-//    - macOS: ~/Library/Application Support/express-botx/config.yaml
-//    - Linux: ~/.config/express-botx/config.yaml
-//    - Windows: %AppData%/express-botx/config.yaml
+//   - macOS: ~/Library/Application Support/express-botx/config.yaml
+//   - Linux: ~/.config/express-botx/config.yaml
+//   - Windows: %AppData%/express-botx/config.yaml
+//
 // Returns empty string if no config file is found.
 func findConfigFile() string {
 	// 1. Current directory
@@ -907,24 +908,24 @@ func (c *Config) validateBotConfigs() error {
 
 // knownCallbackEvents is the set of recognized BotX callback event names.
 var knownCallbackEvents = map[string]bool{
-	"message":                    true,
-	"chat_created":               true,
-	"added_to_chat":              true,
-	"user_joined_to_chat":        true,
-	"deleted_from_chat":          true,
-	"left_from_chat":             true,
-	"chat_deleted_by_user":       true,
-	"cts_login":                  true,
-	"cts_logout":                 true,
-	"event_edit":                 true,
-	"smartapp_event":             true,
-	"internal_bot_notification":  true,
-	"conference_created":         true,
-	"conference_deleted":         true,
-	"call_started":               true,
-	"call_ended":                 true,
-	"notification_callback":      true,
-	"*":                          true,
+	"message":                   true,
+	"chat_created":              true,
+	"added_to_chat":             true,
+	"user_joined_to_chat":       true,
+	"deleted_from_chat":         true,
+	"left_from_chat":            true,
+	"chat_deleted_by_user":      true,
+	"cts_login":                 true,
+	"cts_logout":                true,
+	"event_edit":                true,
+	"smartapp_event":            true,
+	"internal_bot_notification": true,
+	"conference_created":        true,
+	"conference_deleted":        true,
+	"call_started":              true,
+	"call_ended":                true,
+	"notification_callback":     true,
+	"*":                         true,
 }
 
 // ValidateCallbacks checks the callbacks configuration for errors.

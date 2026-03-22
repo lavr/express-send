@@ -10,7 +10,7 @@ import (
 type Fake struct {
 	mu       sync.Mutex
 	work     []*WorkMessage
-	results  map[string][]*WorkResult  // topic -> results
+	results  map[string][]*WorkResult      // topic -> results
 	catalogs map[string][]*CatalogSnapshot // topic -> snapshots
 
 	workHandler    func(context.Context, *WorkMessage) error
