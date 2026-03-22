@@ -454,19 +454,42 @@ func (c *Config) BotNames() []string {
 // ConfigForBot returns a copy of this Config resolved for the named bot.
 // The returned config has Host, BotID, BotSecret, BotToken, BotName, BotTimeout
 // set from the bot entry, and inherits Cache, Chats, configPath from the parent.
+// Bot fields with env:/vault: references are resolved before returning.
 func (c *Config) ConfigForBot(name string) (*Config, error) {
 	bot, ok := c.Bots[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown bot %q, available: %s", name, c.botNames())
 	}
+
+	host, err := secret.Resolve(bot.Host)
+	if err != nil {
+		return nil, fmt.Errorf("bot %q host: %w", name, err)
+	}
+	botID, err := secret.Resolve(bot.ID)
+	if err != nil {
+		return nil, fmt.Errorf("bot %q id: %w", name, err)
+	}
+	botSecret := bot.Secret
+	if botSecret != "" {
+		if botSecret, err = secret.Resolve(botSecret); err != nil {
+			return nil, fmt.Errorf("bot %q secret: %w", name, err)
+		}
+	}
+	botToken := bot.Token
+	if botToken != "" {
+		if botToken, err = secret.Resolve(botToken); err != nil {
+			return nil, fmt.Errorf("bot %q token: %w", name, err)
+		}
+	}
+
 	return &Config{
 		Bots:       c.Bots,
 		Chats:      c.Chats,
 		Cache:      c.Cache,
-		Host:       bot.Host,
-		BotID:      bot.ID,
-		BotSecret:  bot.Secret,
-		BotToken:   bot.Token,
+		Host:       host,
+		BotID:      botID,
+		BotSecret:  botSecret,
+		BotToken:   botToken,
 		BotName:    name,
 		BotTimeout: bot.Timeout,
 		Format:     c.Format,

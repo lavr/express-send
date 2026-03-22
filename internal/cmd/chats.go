@@ -762,7 +762,16 @@ func runChatsImportAll(flags config.Flags, resolvedType, prefix string, dryRun, 
 					continue
 				}
 				if !overwrite {
-					return fmt.Errorf("alias %q already points to %s, use --skip-existing or --overwrite", alias, existing.ID)
+					anyFailed = true
+					result.Skipped = append(result.Skipped, importedChat{
+						BotName: name,
+						Alias:   alias,
+						ID:      chat.GroupChatID,
+						Name:    chat.Name,
+						Type:    chat.ChatType,
+						Reason:  fmt.Sprintf("alias conflict with %s, use --skip-existing or --overwrite", existing.ID),
+					})
+					continue
 				}
 
 				updated := existing
