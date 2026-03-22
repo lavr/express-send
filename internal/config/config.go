@@ -959,6 +959,479 @@ func (c *CallbacksConfig) Validate() error {
 	return nil
 }
 
+// ValidationLevel indicates the severity of a validation result.
+type ValidationLevel string
+
+const (
+	ValidationError   ValidationLevel = "error"
+	ValidationWarning ValidationLevel = "warning"
+)
+
+// ValidationResult represents a single validation issue found in the config.
+type ValidationResult struct {
+	Level   ValidationLevel `json:"level"`
+	Path    string          `json:"path"`
+	Message string          `json:"message"`
+}
+
+// knownKeys maps each config section to its known YAML keys.
+var knownKeys = map[string]map[string]bool{
+	"": {
+		"bots": true, "chats": true, "cache": true, "server": true,
+		"queue": true, "producer": true, "worker": true, "catalog": true,
+	},
+	"bots.*": {
+		"host": true, "id": true, "secret": true, "token": true, "timeout": true,
+	},
+	"chats.*": {
+		"id": true, "bot": true, "default": true,
+	},
+	"cache": {
+		"type": true, "file_path": true, "vault_url": true, "vault_path": true, "ttl": true,
+	},
+	"server": {
+		"listen": true, "base_path": true, "api_keys": true, "allow_bot_secret_auth": true,
+		"alertmanager": true, "grafana": true, "callbacks": true, "docs": true, "external_url": true,
+	},
+	"server.alertmanager": {
+		"default_chat_id": true, "error_severities": true, "template": true, "template_file": true,
+	},
+	"server.grafana": {
+		"default_chat_id": true, "error_states": true, "template": true, "template_file": true,
+	},
+	"server.callbacks": {
+		"base_path": true, "verify_jwt": true, "rules": true,
+	},
+	"server.callbacks.rules.*": {
+		"events": true, "async": true, "handler": true,
+	},
+	"server.callbacks.rules.*.handler": {
+		"type": true, "command": true, "url": true, "timeout": true,
+	},
+	"server.api_keys.*": {
+		"name": true, "key": true,
+	},
+	"queue": {
+		"driver": true, "url": true, "name": true, "reply_queue": true, "group": true, "max_file_size": true,
+	},
+	"producer": {
+		"routing_mode": true,
+	},
+	"worker": {
+		"retry_count": true, "retry_backoff": true, "shutdown_timeout": true, "health_listen": true,
+	},
+	"catalog": {
+		"queue_name": true, "cache_file": true, "max_age": true, "publish_interval": true, "publish": true,
+	},
+}
+
+// Validate performs offline validation of the config and raw YAML, returning all
+// issues found (errors and warnings) without short-circuiting.
+func (c *Config) Validate(rawYAML []byte) []ValidationResult {
+	var results []ValidationResult
+
+	// 1. Unknown key detection via yaml.Node walking
+	results = append(results, detectUnknownKeys(rawYAML)...)
+
+	// 2. Required field checks
+	results = append(results, c.validateRequiredFields()...)
+
+	// 3. Format validation
+	results = append(results, c.validateFormats()...)
+
+	// 4. Cross-reference consistency
+	results = append(results, c.validateCrossReferences()...)
+
+	return results
+}
+
+// detectUnknownKeys parses raw YAML into a node tree and reports unknown keys.
+func detectUnknownKeys(rawYAML []byte) []ValidationResult {
+	var root yaml.Node
+	if err := yaml.Unmarshal(rawYAML, &root); err != nil {
+		return nil // YAML parse errors handled elsewhere
+	}
+	if root.Kind != yaml.DocumentNode || len(root.Content) == 0 {
+		return nil
+	}
+	doc := root.Content[0]
+	if doc.Kind != yaml.MappingNode {
+		return nil
+	}
+	return checkMappingKeys(doc, "")
+}
+
+// checkMappingKeys recursively checks mapping nodes for unknown keys.
+func checkMappingKeys(node *yaml.Node, parentPath string) []ValidationResult {
+	var results []ValidationResult
+	if node.Kind != yaml.MappingNode {
+		return nil
+	}
+
+	// Determine which known-key set to use
+	lookupKey := parentPath
+	known := knownKeys[lookupKey]
+	if known == nil {
+		// Try wildcard (e.g. "bots.*")
+		if i := strings.LastIndex(parentPath, "."); i >= 0 {
+			known = knownKeys[parentPath[:i]+".*"]
+		}
+	}
+
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		keyNode := node.Content[i]
+		valNode := node.Content[i+1]
+		key := keyNode.Value
+
+		childPath := key
+		if parentPath != "" {
+			childPath = parentPath + "." + key
+		}
+
+		// Check if key is known at this level
+		if known != nil {
+			if !known[key] {
+				results = append(results, ValidationResult{
+					Level:   ValidationWarning,
+					Path:    childPath,
+					Message: fmt.Sprintf("unknown key %q", key),
+				})
+				continue // don't recurse into unknown keys
+			}
+		}
+
+		// Recurse into known mapping children
+		switch valNode.Kind {
+		case yaml.MappingNode:
+			// For map-type fields (bots, chats, server.api_keys), recurse into each entry
+			if parentPath == "" && (key == "bots" || key == "chats") {
+				for j := 0; j+1 < len(valNode.Content); j += 2 {
+					entryKey := valNode.Content[j].Value
+					entryVal := valNode.Content[j+1]
+					if entryVal.Kind == yaml.MappingNode {
+						entryPath := childPath + "." + entryKey
+						startIdx := len(results)
+						results = append(results, checkMappingKeys(entryVal, childPath+".*")...)
+						// Fix paths: replace wildcard with actual key
+						for k := startIdx; k < len(results); k++ {
+							if strings.HasPrefix(results[k].Path, childPath+".*") {
+								results[k].Path = strings.Replace(results[k].Path, childPath+".*", entryPath, 1)
+							}
+						}
+					}
+				}
+			} else {
+				results = append(results, checkMappingKeys(valNode, childPath)...)
+			}
+		case yaml.SequenceNode:
+			// Handle sequences with known element schemas
+			if knownKeys[childPath+".*"] != nil {
+				for j, item := range valNode.Content {
+					if item.Kind == yaml.MappingNode {
+						itemPath := fmt.Sprintf("%s[%d]", childPath, j)
+						subResults := checkMappingKeys(item, childPath+".*")
+						for k := range subResults {
+							if strings.HasPrefix(subResults[k].Path, childPath+".*") {
+								subResults[k].Path = strings.Replace(subResults[k].Path, childPath+".*", itemPath, 1)
+							}
+						}
+						results = append(results, subResults...)
+					}
+				}
+			}
+		}
+	}
+	return results
+}
+
+// sortedMapKeys returns the keys of a map sorted alphabetically.
+func sortedMapKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// validateRequiredFields checks that required fields are present.
+func (c *Config) validateRequiredFields() []ValidationResult {
+	var results []ValidationResult
+
+	for _, name := range sortedMapKeys(c.Bots) {
+		bot := c.Bots[name]
+		if bot.Host == "" {
+			results = append(results, ValidationResult{
+				Level:   ValidationError,
+				Path:    "bots." + name + ".host",
+				Message: "host is required",
+			})
+		}
+		if bot.ID == "" {
+			results = append(results, ValidationResult{
+				Level:   ValidationError,
+				Path:    "bots." + name + ".id",
+				Message: "id is required",
+			})
+		}
+		if bot.Secret == "" && bot.Token == "" {
+			results = append(results, ValidationResult{
+				Level:   ValidationError,
+				Path:    "bots." + name,
+				Message: "secret or token is required",
+			})
+		}
+		if bot.Secret != "" && bot.Token != "" {
+			results = append(results, ValidationResult{
+				Level:   ValidationError,
+				Path:    "bots." + name,
+				Message: "has both secret and token, use one",
+			})
+		}
+	}
+
+	return results
+}
+
+// validateFormats checks format correctness of field values.
+func (c *Config) validateFormats() []ValidationResult {
+	var results []ValidationResult
+
+	// Bot ID must be valid UUID
+	for _, name := range sortedMapKeys(c.Bots) {
+		bot := c.Bots[name]
+		if bot.ID != "" && !looksLikeSecretRef(bot.ID) && !IsUUID(bot.ID) {
+			results = append(results, ValidationResult{
+				Level:   ValidationError,
+				Path:    "bots." + name + ".id",
+				Message: fmt.Sprintf("invalid UUID format %q", bot.ID),
+			})
+		}
+	}
+
+	// Chat ID must be valid UUID
+	for _, name := range sortedMapKeys(c.Chats) {
+		chat := c.Chats[name]
+		if chat.ID != "" && !looksLikeSecretRef(chat.ID) && !IsUUID(chat.ID) {
+			results = append(results, ValidationResult{
+				Level:   ValidationError,
+				Path:    "chats." + name + ".id",
+				Message: fmt.Sprintf("invalid UUID format %q", chat.ID),
+			})
+		}
+	}
+
+	// Routing mode
+	if c.Producer.RoutingMode != "" {
+		if err := ValidateRoutingMode(c.Producer.RoutingMode); err != nil {
+			results = append(results, ValidationResult{
+				Level:   ValidationError,
+				Path:    "producer.routing_mode",
+				Message: err.Error(),
+			})
+		}
+	}
+
+	// Duration fields
+	durationFields := []struct {
+		path  string
+		value string
+	}{
+		{"worker.retry_backoff", c.Worker.RetryBackoff},
+		{"worker.shutdown_timeout", c.Worker.ShutdownTimeout},
+		{"catalog.max_age", c.Catalog.MaxAge},
+		{"catalog.publish_interval", c.Catalog.PublishInterval},
+	}
+	for _, f := range durationFields {
+		if f.value != "" {
+			if _, err := time.ParseDuration(f.value); err != nil {
+				results = append(results, ValidationResult{
+					Level:   ValidationError,
+					Path:    f.path,
+					Message: fmt.Sprintf("invalid duration %q: %v", f.value, err),
+				})
+			}
+		}
+	}
+
+	// Callback rule validation
+	if c.Server.Callbacks != nil {
+		for i, rule := range c.Server.Callbacks.Rules {
+			// Events must not be empty
+			if len(rule.Events) == 0 {
+				results = append(results, ValidationResult{
+					Level:   ValidationError,
+					Path:    fmt.Sprintf("server.callbacks.rules[%d].events", i),
+					Message: "events must not be empty",
+				})
+			}
+			for _, ev := range rule.Events {
+				if !knownCallbackEvents[ev] {
+					results = append(results, ValidationResult{
+						Level:   ValidationWarning,
+						Path:    fmt.Sprintf("server.callbacks.rules[%d].events", i),
+						Message: fmt.Sprintf("unknown event %q (will still be matched)", ev),
+					})
+				}
+			}
+			if rule.Handler.Timeout != "" {
+				if _, err := time.ParseDuration(rule.Handler.Timeout); err != nil {
+					results = append(results, ValidationResult{
+						Level:   ValidationError,
+						Path:    fmt.Sprintf("server.callbacks.rules[%d].handler.timeout", i),
+						Message: fmt.Sprintf("invalid duration %q: %v", rule.Handler.Timeout, err),
+					})
+				}
+			}
+			// Handler type validation and type-specific checks
+			switch rule.Handler.Type {
+			case "exec":
+				if rule.Handler.Command == "" {
+					results = append(results, ValidationResult{
+						Level:   ValidationError,
+						Path:    fmt.Sprintf("server.callbacks.rules[%d].handler.command", i),
+						Message: "exec handler requires command",
+					})
+				}
+			case "webhook":
+				if rule.Handler.URL == "" {
+					results = append(results, ValidationResult{
+						Level:   ValidationError,
+						Path:    fmt.Sprintf("server.callbacks.rules[%d].handler.url", i),
+						Message: "webhook handler requires url",
+					})
+				}
+			case "":
+				results = append(results, ValidationResult{
+					Level:   ValidationError,
+					Path:    fmt.Sprintf("server.callbacks.rules[%d].handler.type", i),
+					Message: "handler type is required",
+				})
+			default:
+				results = append(results, ValidationResult{
+					Level:   ValidationError,
+					Path:    fmt.Sprintf("server.callbacks.rules[%d].handler.type", i),
+					Message: fmt.Sprintf("unsupported handler type %q (supported: exec, webhook)", rule.Handler.Type),
+				})
+			}
+		}
+	}
+
+	// Cache type
+	if c.Cache.Type != "" {
+		switch c.Cache.Type {
+		case "none", "file", "vault":
+			// valid
+		default:
+			results = append(results, ValidationResult{
+				Level:   ValidationError,
+				Path:    "cache.type",
+				Message: fmt.Sprintf("invalid cache type %q: must be none, file, or vault", c.Cache.Type),
+			})
+		}
+	}
+
+	// Queue driver
+	if c.Queue.Driver != "" {
+		switch c.Queue.Driver {
+		case "rabbitmq", "kafka":
+			// valid
+		default:
+			results = append(results, ValidationResult{
+				Level:   ValidationError,
+				Path:    "queue.driver",
+				Message: fmt.Sprintf("invalid queue driver %q: must be rabbitmq or kafka", c.Queue.Driver),
+			})
+		}
+	}
+
+	// Max file size
+	if c.Queue.MaxFileSize != "" {
+		if _, err := ParseFileSize(c.Queue.MaxFileSize); err != nil {
+			results = append(results, ValidationResult{
+				Level:   ValidationError,
+				Path:    "queue.max_file_size",
+				Message: err.Error(),
+			})
+		}
+	}
+
+	return results
+}
+
+// validateCrossReferences checks referential integrity between config sections.
+func (c *Config) validateCrossReferences() []ValidationResult {
+	var results []ValidationResult
+
+	// Chat bot references must exist in bots map
+	for _, name := range sortedMapKeys(c.Chats) {
+		chat := c.Chats[name]
+		if chat.Bot != "" {
+			if _, ok := c.Bots[chat.Bot]; !ok {
+				botNames := c.botNames()
+				results = append(results, ValidationResult{
+					Level:   ValidationError,
+					Path:    "chats." + name + ".bot",
+					Message: fmt.Sprintf("references unknown bot %q, available: %s", chat.Bot, botNames),
+				})
+			}
+		}
+	}
+
+	// At most one default chat
+	var defaults []string
+	for _, name := range sortedMapKeys(c.Chats) {
+		chat := c.Chats[name]
+		if chat.Default {
+			defaults = append(defaults, name)
+		}
+	}
+	if len(defaults) > 1 {
+		sort.Strings(defaults)
+		results = append(results, ValidationResult{
+			Level:   ValidationError,
+			Path:    "chats",
+			Message: fmt.Sprintf("multiple chats marked as default: %s", strings.Join(defaults, ", ")),
+		})
+	}
+
+	// Alertmanager default_chat_id must reference existing chat alias
+	if c.Server.Alertmanager != nil && c.Server.Alertmanager.DefaultChatID != "" {
+		chatID := c.Server.Alertmanager.DefaultChatID
+		if !IsUUID(chatID) {
+			// It's a chat alias reference
+			if _, ok := c.Chats[chatID]; !ok {
+				results = append(results, ValidationResult{
+					Level:   ValidationError,
+					Path:    "server.alertmanager.default_chat_id",
+					Message: fmt.Sprintf("references unknown chat alias %q", chatID),
+				})
+			}
+		}
+	}
+
+	// Grafana default_chat_id must reference existing chat alias
+	if c.Server.Grafana != nil && c.Server.Grafana.DefaultChatID != "" {
+		chatID := c.Server.Grafana.DefaultChatID
+		if !IsUUID(chatID) {
+			if _, ok := c.Chats[chatID]; !ok {
+				results = append(results, ValidationResult{
+					Level:   ValidationError,
+					Path:    "server.grafana.default_chat_id",
+					Message: fmt.Sprintf("references unknown chat alias %q", chatID),
+				})
+			}
+		}
+	}
+
+	return results
+}
+
+// looksLikeSecretRef returns true if the value looks like an env: or vault: reference.
+func looksLikeSecretRef(s string) bool {
+	return strings.HasPrefix(s, "env:") || strings.HasPrefix(s, "vault:")
+}
+
 // ValidateConfig parses raw YAML data into a Config and runs structural
 // validation (bot configs, default chat, chat-bot references, callbacks).
 // It does not resolve secrets or bot credentials.

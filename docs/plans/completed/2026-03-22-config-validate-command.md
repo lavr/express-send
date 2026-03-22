@@ -35,13 +35,13 @@ Define `ValidationResult` struct with `Level` (error/warning), `Path` (e.g. "bot
 
 Add `LoadRaw(flags Flags) (*Config, []byte, error)` or similar that loads config without resolving secrets — just parses YAML and returns both the Config and raw bytes (for unknown-key detection).
 
-- [ ] Define `ValidationResult` struct and `Validate(rawYAML []byte) []ValidationResult` method
-- [ ] Implement unknown top-level and nested key detection via yaml.Node walking
-- [ ] Implement required field checks (host, id, secret-or-token for bots)
-- [ ] Implement format checks (UUID, duration, enum, file size)
-- [ ] Implement cross-reference checks (chat bot refs, default chat, alertmanager/grafana chat refs)
-- [ ] Write tests covering: valid config (no issues), unknown keys (warnings), missing required fields (errors), invalid formats (errors), cross-reference errors, mixed errors and warnings
-- [ ] Run project test suite - must pass before task 2
+- [x] Define `ValidationResult` struct and `Validate(rawYAML []byte) []ValidationResult` method
+- [x] Implement unknown top-level and nested key detection via yaml.Node walking
+- [x] Implement required field checks (host, id, secret-or-token for bots)
+- [x] Implement format checks (UUID, duration, enum, file size)
+- [x] Implement cross-reference checks (chat bot refs, default chat, alertmanager/grafana chat refs)
+- [x] Write tests covering: valid config (no issues), unknown keys (warnings), missing required fields (errors), invalid formats (errors), cross-reference errors, mixed errors and warnings
+- [x] Run project test suite - must pass before task 2
 
 ### Task 2: Add `config validate` CLI command
 
@@ -50,23 +50,23 @@ Add `LoadRaw(flags Flags) (*Config, []byte, error)` or similar that loads config
 
 Wire the validate subcommand into the config command router:
 
-- [ ] Add `case "validate"` to `runConfig()` switch and update usage/error message
-- [ ] Implement `runConfigValidate(args, deps)`: parse `--config` and `--format` flags, load config via `LoadMinimal` + raw YAML, call `Validate()`, print results
-- [ ] Text output: print each issue as `[ERROR] path: message` or `[WARN] path: message`, exit with error if any errors found
-- [ ] JSON output: print array of `{level, path, message}` objects, exit with error if any errors found
-- [ ] Print summary line: "N errors, M warnings" (text mode)
-- [ ] Update `printConfigUsage()` to include `validate` command
-- [ ] Write tests: valid config returns success, invalid config returns errors, warning-only config returns success, `--format json` output, missing config file error
-- [ ] Run project test suite - must pass before task 3
+- [x] Add `case "validate"` to `runConfig()` switch and update usage/error message
+- [x] Implement `runConfigValidate(args, deps)`: parse `--config` and `--format` flags, load config via `LoadMinimal` + raw YAML, call `Validate()`, print results
+- [x] Text output: print each issue as `[ERROR] path: message` or `[WARN] path: message`, exit with error if any errors found
+- [x] JSON output: print array of `{level, path, message}` objects, exit with error if any errors found
+- [x] Print summary line: "N errors, M warnings" (text mode)
+- [x] Update `printConfigUsage()` to include `validate` command
+- [x] Write tests: valid config returns success, invalid config returns errors, warning-only config returns success, `--format json` output, missing config file error
+- [x] Run project test suite - must pass before task 3
 
 ### Task 3: Verify acceptance criteria
 
-- [ ] Run full test suite (`go test ./...`)
-- [ ] Run linter (`golangci-lint run` or project-specific linter)
-- [ ] Verify test coverage for new code meets 80%+
+- [x] Run full test suite (`go test ./...`)
+- [x] Run linter (`golangci-lint run` or project-specific linter)
+- [x] Verify test coverage for new code meets 80%+
 
 ### Task 4: Update documentation
 
-- [ ] Update README.md if user-facing changes
-- [ ] Update CLAUDE.md if internal patterns changed
-- [ ] Move this plan to `docs/plans/completed/`
+- [x] Update README.md if user-facing changes
+- [x] Update CLAUDE.md if internal patterns changed (no CLAUDE.md in project - N/A)
+- [x] Move this plan to `docs/plans/completed/`

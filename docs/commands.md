@@ -22,6 +22,7 @@
 | `config apikey add\|rm\|list` | Управление API-ключами сервера |
 | `config show` | Показать путь к конфигу и сводку |
 | `config edit` | Открыть конфиг в редакторе с валидацией |
+| `config validate` | Проверить конфиг: синтаксис, поля, форматы, ссылки |
 
 ## Общие флаги
 
@@ -539,4 +540,38 @@ express-botx config edit --config /path/to/config.yaml
 
 ```
 --config    путь к файлу конфигурации
+```
+
+### config validate
+
+Проверяет файл конфигурации без подключения к серверам: YAML-синтаксис, известные поля, обязательные поля, форматы значений, перекрёстные ссылки.
+
+```bash
+# Проверить конфиг
+express-botx config validate
+
+# Указать конкретный файл
+express-botx config validate --config /path/to/config.yaml
+
+# Вывод в JSON
+express-botx config validate --format json
+```
+
+Поведение:
+- Выводит список проблем: `[ERROR] path: message` или `[WARN] path: message`
+- В конце — строка итогов: "N errors, M warnings"
+- При наличии ошибок — exit 1, при наличии только предупреждений — exit 0
+- Не резолвит секреты и не проверяет доступность серверов
+
+Проверки:
+- Неизвестные ключи в YAML (предупреждения)
+- Обязательные поля: `host` и `id` для ботов, `secret` или `token` (но не оба)
+- Форматы: UUID для `id` и `chat_id`, длительности (`timeout`, `retry_backoff`), допустимые enum-значения (`cache.type`, `queue.driver`, `routing_mode`)
+- Перекрёстные ссылки: `bot` в чате ссылается на существующего бота, не более одного чата по умолчанию, `default_chat_id` в alertmanager/grafana ссылается на существующий алиас
+
+Флаги:
+
+```
+--config    путь к файлу конфигурации
+--format    формат вывода: text или json (по умолчанию: text)
 ```
