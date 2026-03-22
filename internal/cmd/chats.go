@@ -66,10 +66,10 @@ func runChats(args []string, deps Deps) error {
 
 type chatsListEntry struct {
 	BotName     string `json:"bot_name,omitempty"`
-	GroupChatID string `json:"group_chat_id"`
-	Name        string `json:"name"`
-	ChatType    string `json:"chat_type"`
-	Members     int    `json:"members"`
+	GroupChatID string `json:"group_chat_id,omitempty"`
+	Name        string `json:"name,omitempty"`
+	ChatType    string `json:"chat_type,omitempty"`
+	Members     int    `json:"members,omitempty"`
 	Error       string `json:"error,omitempty"`
 }
 

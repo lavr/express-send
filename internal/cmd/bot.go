@@ -116,7 +116,7 @@ func runBotPing(args []string, deps Deps) error {
 }
 
 type botPingResult struct {
-	Name      string `json:"name"`
+	Name      string `json:"name,omitempty"`
 	Status    string `json:"status"`
 	ElapsedMs int64  `json:"elapsed_ms"`
 	Error     string `json:"error,omitempty"`
@@ -573,7 +573,7 @@ func runBotRm(args []string, deps Deps) error {
 }
 
 type botTokenResult struct {
-	Name  string `json:"name"`
+	Name  string `json:"name,omitempty"`
 	Token string `json:"token,omitempty"`
 	Error string `json:"error,omitempty"`
 }
