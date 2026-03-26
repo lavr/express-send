@@ -3,6 +3,12 @@ set -euo pipefail
 
 CHART_FILE="charts/express-botx/Chart.yaml"
 
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+if [[ "$current_branch" != "main" ]]; then
+    echo "Error: release.sh must be run from the main branch (current: $current_branch)"
+    exit 1
+fi
+
 usage() {
     echo "Usage: $0 <command>"
     echo ""
