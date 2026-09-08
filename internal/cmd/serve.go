@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -186,7 +187,7 @@ Options:
 	}
 
 	// Resolve API keys
-	keys, err := resolveAPIKeys(cfg.Server.APIKeys)
+	keys, err := resolveAPIKeys(cfg.Server.APIKeys, cfg.Chats)
 	if err != nil {
 		return fmt.Errorf("resolving api keys: %w", err)
 	}
@@ -207,6 +208,10 @@ Options:
 			return fmt.Errorf("resolving EXPRESS_BOTX_SERVER_API_KEY: %w", err)
 		}
 		keys = append(keys, server.ResolvedKey{Name: "env", Key: resolved})
+	}
+
+	if err := checkKeyCollisions(keys); err != nil {
+		return err
 	}
 
 	// Bot secret auth (only for bots with secret, not token-only)
@@ -434,16 +439,72 @@ Options:
 	return srv.Run(ctx)
 }
 
-func resolveAPIKeys(keys []config.APIKeyConfig) ([]server.ResolvedKey, error) {
+func resolveAPIKeys(keys []config.APIKeyConfig, chats map[string]config.ChatConfig) ([]server.ResolvedKey, error) {
 	resolved := make([]server.ResolvedKey, 0, len(keys))
+	seenNames := make(map[string]bool, len(keys))
 	for _, k := range keys {
+		if seenNames[k.Name] {
+			// Names no longer index anything — a key's scope travels with the
+			// credential — so a repeat is confusing rather than dangerous, and
+			// refusing to start over it would break deployments that have been
+			// running happily. The colliding values below are the real hazard.
+			vlog.Info("config: duplicate API key name %q: log lines and errors will not tell these keys apart", k.Name)
+		}
+		seenNames[k.Name] = true
 		val, err := secret.Resolve(k.Key)
 		if err != nil {
 			return nil, fmt.Errorf("key %q: %w", k.Name, err)
 		}
-		resolved = append(resolved, server.ResolvedKey{Name: k.Name, Key: val})
+		scope, err := resolveKeyScope(k, chats)
+		if err != nil {
+			return nil, err
+		}
+		resolved = append(resolved, server.ResolvedKey{Name: k.Name, Key: val, Chats: scope})
 	}
 	return resolved, nil
+}
+
+// checkKeyCollisions rejects two credentials that resolve to the same value.
+// It runs over the assembled set rather than over the configured keys alone:
+// --api-key and EXPRESS_BOTX_SERVER_API_KEY are appended afterwards and carry
+// no scope, and the server indexes keys by value, so a collision there would
+// not be ambiguous but silently authoritative — the unscoped entry would take
+// the place of the scoped one and hand its holder unrestricted access.
+func checkKeyCollisions(keys []server.ResolvedKey) error {
+	seen := make(map[string]string, len(keys))
+	for _, k := range keys {
+		if owner, dup := seen[k.Key]; dup {
+			return fmt.Errorf("API keys %q and %q resolve to the same value: one would silently replace the other's chat scope", owner, k.Name)
+		}
+		seen[k.Key] = k.Name
+	}
+	return nil
+}
+
+// resolveKeyScope turns a key's configured chats (aliases or UUIDs) into the
+// UUID list compared at request time. Resolving here, once, is what keeps the
+// check honest: a scope kept as aliases would not match a request addressing
+// the same chat by its bare UUID.
+func resolveKeyScope(k config.APIKeyConfig, chats map[string]config.ChatConfig) ([]string, error) {
+	if k.Chats == nil {
+		return nil, nil
+	}
+	if len(k.Chats) == 0 {
+		return nil, fmt.Errorf("key %q: chats must not be empty; omit the field to leave the key unrestricted", k.Name)
+	}
+	scope := make([]string, 0, len(k.Chats))
+	for _, c := range k.Chats {
+		// Resolved by the very function delivery uses, so a reference cannot
+		// mean one chat when a scope is built and another when a message is
+		// addressed. Ordering these checks by hand is what let an alias whose
+		// name is itself a UUID resolve differently on the two paths.
+		id, _, err := config.ResolveChatRef(chats, c)
+		if err != nil {
+			return nil, fmt.Errorf("key %q: %w", k.Name, err)
+		}
+		scope = append(scope, strings.ToLower(id))
+	}
+	return scope, nil
 }
 
 func buildSendRequest(p *server.SendPayload) *botapi.SendRequest {
@@ -903,7 +964,7 @@ func runServeEnqueue(flags config.Flags, listenFlag, apiKeyFlag, tlsCertFlag, tl
 	srvCfg.AppVersion = Version
 
 	// Resolve API keys
-	keys, err := resolveAPIKeys(cfg.Server.APIKeys)
+	keys, err := resolveAPIKeys(cfg.Server.APIKeys, cfg.Chats)
 	if err != nil {
 		return fmt.Errorf("resolving api keys: %w", err)
 	}
@@ -922,6 +983,10 @@ func runServeEnqueue(flags config.Flags, listenFlag, apiKeyFlag, tlsCertFlag, tl
 			return fmt.Errorf("resolving EXPRESS_BOTX_SERVER_API_KEY: %w", err)
 		}
 		keys = append(keys, server.ResolvedKey{Name: "env", Key: resolved})
+	}
+
+	if err := checkKeyCollisions(keys); err != nil {
+		return err
 	}
 
 	if len(keys) == 0 {
@@ -1020,7 +1085,7 @@ func runServeEnqueue(flags config.Flags, listenFlag, apiKeyFlag, tlsCertFlag, tl
 			if chatID != "" && !config.IsUUID(chatID) {
 				chat, err := snap.ResolveChat(chatID)
 				if err != nil {
-					return "", err
+					return "", fmt.Errorf("%w: %v", server.ErrChatUnresolved, err)
 				}
 				routeChatAlias = chatID
 				chatID = chat.ID
@@ -1062,6 +1127,14 @@ func runServeEnqueue(flags config.Flags, listenFlag, apiKeyFlag, tlsCertFlag, tl
 		}
 		if chatID == "" {
 			return "", fmt.Errorf("chat_id is required")
+		}
+
+		// chatID is final here: catalog resolution has run, and nothing between
+		// this point and delivery changes it. Applying the key's chat scope
+		// anywhere earlier would authorize the address the local config names
+		// while the catalog sends the message somewhere else.
+		if !server.ChatAllowed(ctx, chatID) {
+			return "", server.ErrChatNotAllowed
 		}
 
 		msg := &queue.WorkMessage{

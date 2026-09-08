@@ -79,7 +79,9 @@ paths:
     get:
       operationId: chatsAliasList
       summary: List chat aliases
-      description: Returns the list of chat aliases from the config file, including bot bindings.
+      description: >
+        Returns the list of chat aliases from the config file, including bot bindings.
+        A key restricted to a chat scope sees only the chats in its own scope.
       responses:
         "200":
           description: List of chat aliases
@@ -292,7 +294,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: Invalid credentials
+          description: Invalid credentials, or the target chat is outside this API key's chat scope
           content:
             application/json:
               schema:
@@ -398,7 +400,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: Invalid credentials
+          description: Invalid credentials, or the target chat is outside this API key's chat scope
           content:
             application/json:
               schema:
@@ -602,7 +604,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: Invalid credentials
+          description: Invalid credentials, or the target chat is outside this API key's chat scope
           content:
             application/json:
               schema:
