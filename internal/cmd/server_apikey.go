@@ -37,12 +37,13 @@ func runServerAPIKeyList(args []string, deps Deps) error {
 	}
 
 	type apiKeyInfo struct {
-		Name   string `json:"name"`
-		Source string `json:"source"`
+		Name   string   `json:"name"`
+		Source string   `json:"source"`
+		Chats  []string `json:"chats,omitempty"`
 	}
 	info := make([]apiKeyInfo, len(cfg.Server.APIKeys))
 	for i, k := range cfg.Server.APIKeys {
-		info[i] = apiKeyInfo{Name: k.Name, Source: describeKeySource(k.Key)}
+		info[i] = apiKeyInfo{Name: k.Name, Source: describeKeySource(k.Key), Chats: k.Chats}
 	}
 
 	return printOutput(deps.Stdout, cfg.Format, func() {
@@ -53,7 +54,11 @@ func runServerAPIKeyList(args []string, deps Deps) error {
 		}
 		fmt.Fprintf(deps.Stdout, "API keys (%d):\n", len(info))
 		for _, k := range info {
-			fmt.Fprintf(deps.Stdout, "  %-20s %s\n", k.Name, k.Source)
+			scope := "any chat"
+			if len(k.Chats) > 0 {
+				scope = strings.Join(k.Chats, ", ")
+			}
+			fmt.Fprintf(deps.Stdout, "  %-20s %-12s %s\n", k.Name, k.Source, scope)
 		}
 	}, info)
 }
@@ -63,12 +68,14 @@ func runServerAPIKeyAdd(args []string, deps Deps) error {
 	fs.SetOutput(deps.Stderr)
 	var flags config.Flags
 	var name, key string
+	var chats stringSlice
 
 	fs.StringVar(&flags.ConfigPath, "config", "", "path to config file")
 	fs.StringVar(&name, "name", "", "key name (required)")
 	fs.StringVar(&key, "key", "", "key value (generated if omitted)")
+	fs.Var(&chats, "chat", "restrict the key to this chat (alias or UUID); repeatable")
 	fs.Usage = func() {
-		fmt.Fprintf(deps.Stderr, "Usage: express-botx config apikey add --name NAME [--key VALUE] [options]\n\nAdd an API key to the server config.\nIf --key is omitted, a random key is generated.\n\nOptions:\n")
+		fmt.Fprintf(deps.Stderr, "Usage: express-botx config apikey add --name NAME [--key VALUE] [--chat ALIAS]... [options]\n\nAdd an API key to the server config.\nIf --key is omitted, a random key is generated.\nWithout --chat the key may address any chat.\n\nOptions:\n")
 		fs.PrintDefaults()
 	}
 
@@ -102,9 +109,16 @@ func runServerAPIKeyAdd(args []string, deps Deps) error {
 		fmt.Fprintf(deps.Stdout, "Generated key: %s\n", key)
 	}
 
+	for _, c := range chats {
+		if _, ok := cfg.Chats[c]; !ok && !config.IsUUID(c) {
+			return fmt.Errorf("unknown chat %q: use a configured alias or a UUID", c)
+		}
+	}
+
 	cfg.Server.APIKeys = append(cfg.Server.APIKeys, config.APIKeyConfig{
-		Name: name,
-		Key:  key,
+		Name:  name,
+		Key:   key,
+		Chats: chats,
 	})
 
 	if err := cfg.SaveConfig(); err != nil {

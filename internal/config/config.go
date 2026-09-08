@@ -190,6 +190,10 @@ type GitlabEventsConfig struct {
 type APIKeyConfig struct {
 	Name string `yaml:"name" json:"name"`
 	Key  string `yaml:"key" json:"key"` // literal, env:VAR, or vault:path#key
+	// Chats optionally restricts this key to a fixed set of chats (aliases or
+	// UUIDs). A key without Chats may address any chat, preserving the
+	// behaviour of configs written before scoping existed.
+	Chats []string `yaml:"chats,omitempty" json:"chats,omitempty"`
 }
 
 type BotConfig struct {
@@ -1134,7 +1138,7 @@ var knownKeys = map[string]map[string]bool{
 		"type": true, "command": true, "url": true, "timeout": true,
 	},
 	"server.api_keys.*": {
-		"name": true, "key": true,
+		"name": true, "key": true, "chats": true,
 	},
 	"queue": {
 		"driver": true, "url": true, "name": true, "reply_queue": true, "group": true, "max_file_size": true,
@@ -1332,6 +1336,44 @@ func (c *Config) validateRequiredFields() []ValidationResult {
 				Path:    "chats." + name + ".id",
 				Message: "id is required",
 			})
+		}
+	}
+
+	// An API key may be scoped to a set of chats. A scope naming a chat that
+	// does not exist would silently deny everything at request time, so it is
+	// rejected here instead. An explicitly empty list is treated the same way:
+	// it is far more likely to be an editing accident than a deliberate
+	// "deny all", and a silent deny-all looks like a broken network.
+	for i, k := range c.Server.APIKeys {
+		if k.Chats == nil {
+			continue
+		}
+		path := fmt.Sprintf("server.api_keys[%d].chats", i)
+		if len(k.Chats) == 0 {
+			results = append(results, ValidationResult{
+				Level:   ValidationError,
+				Path:    path,
+				Message: "chats must not be empty; omit the field to leave the key unrestricted",
+			})
+			continue
+		}
+		seen := map[string]bool{}
+		for _, name := range k.Chats {
+			if _, ok := c.Chats[name]; !ok && !IsUUID(name) {
+				results = append(results, ValidationResult{
+					Level:   ValidationError,
+					Path:    path,
+					Message: fmt.Sprintf("unknown chat %q: use a configured alias or a UUID", name),
+				})
+			}
+			if seen[name] {
+				results = append(results, ValidationResult{
+					Level:   ValidationWarning,
+					Path:    path,
+					Message: fmt.Sprintf("duplicate chat %q", name),
+				})
+			}
+			seen[name] = true
 		}
 	}
 

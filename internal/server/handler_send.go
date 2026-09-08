@@ -133,6 +133,9 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "chat_id is required")
 			return
 		}
+		if !s.authorizeTargets(w, r, targets, false) {
+			return
+		}
 
 		// Async mode: for direct routing, bot_id is required.
 		// For catalog/mixed modes, bot_id or bot alias can be used.
@@ -168,12 +171,20 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		}
 
 		start := time.Now()
+		// Aliases cannot be authorized before the fan-out — async resolves them
+		// against the bot catalog inside the pipeline — so a refusal surfaces as
+		// a per-target error. When every target was refused, the request was an
+		// authorization failure, not a delivery one, and says so.
+		denied := 0
 		results, errs := fanout(r.Context(), targets, func(ctx context.Context, chat string) (SendResult, error) {
 			// Copy the shared payload and enqueue one message for this chat only.
 			p := payload
 			p.ChatID = chat
 			requestID, err := s.send(ctx, &p)
 			if err != nil {
+				if errors.Is(err, ErrChatNotAllowed) || (errors.Is(err, ErrChatUnresolved) && s.scopedKey(r.Context())) {
+					denied++
+				}
 				return SendResult{}, err
 			}
 			return SendResult{Chat: chat, RequestID: requestID, Queued: true}, nil
@@ -181,12 +192,17 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		elapsed := time.Since(start)
 
 		keyName := KeyName(r.Context())
+		if len(results) == 0 && denied == len(targets) {
+			vlog.V1("server: %s %s [key: %s] -> 403 (%dms)", r.Method, r.URL.Path, keyName, elapsed.Milliseconds())
+			writeError(w, http.StatusForbidden, ErrChatNotAllowed.Error())
+			return
+		}
 		if len(results) == 0 {
 			vlog.V1("server: %s %s [key: %s] -> 502 (%dms)", r.Method, r.URL.Path, keyName, elapsed.Milliseconds())
 		} else {
 			vlog.V1("server: %s %s [key: %s] -> 202 (%dms)", r.Method, r.URL.Path, keyName, elapsed.Milliseconds())
 		}
-		writeMultiSend(w, results, errs, http.StatusAccepted)
+		writeMultiSend(w, results, s.sanitizeErrors(r.Context(), errs), http.StatusAccepted)
 		return
 	}
 
@@ -201,6 +217,9 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	targets := parseChatIDs(payload.ChatID)
 	if len(targets) == 0 {
 		writeError(w, http.StatusBadRequest, "chat_id is required")
+		return
+	}
+	if !s.authorizeTargets(w, r, targets, true) {
 		return
 	}
 
@@ -248,7 +267,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	} else {
 		vlog.V1("server: %s %s [key: %s] -> 200 (%dms)", r.Method, r.URL.Path, keyName, elapsed.Milliseconds())
 	}
-	writeMultiSend(w, results, errs, http.StatusOK)
+	writeMultiSend(w, results, s.sanitizeErrors(r.Context(), errs), http.StatusOK)
 }
 
 // validateAsyncRouting checks a single target chat against the async routing-mode

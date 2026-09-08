@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -21,10 +22,25 @@ import (
 	"github.com/lavr/express-botx/internal/mentions"
 )
 
+// ErrChatNotAllowed is returned by a send pipeline that resolved the final
+// delivery address and found it outside the requesting key's chat scope. The
+// send handler turns it into 403 rather than a delivery failure.
+var ErrChatNotAllowed = errors.New("chat not allowed for this key")
+
+// ErrChatUnresolved is returned by a send pipeline that could not resolve the
+// requested chat. A scoped caller is answered exactly as it would be for a chat
+// outside its scope, keeping the two indistinguishable; an unscoped caller
+// keeps the detailed failure.
+var ErrChatUnresolved = errors.New("unknown chat")
+
 // ResolvedKey is an API key with its secret resolved.
 type ResolvedKey struct {
 	Name string
 	Key  string
+	// Chats is the key's chat scope as resolved UUIDs (lowercase). Empty means
+	// unrestricted. Aliases are resolved once at startup so request handling
+	// compares UUID against UUID and never re-reads the chat catalog.
+	Chats []string
 }
 
 // Config holds the server runtime configuration.
@@ -58,8 +74,8 @@ type Server struct {
 	cfg                  Config
 	send                 SendFunc
 	chats                ChatResolver
-	keyMap               map[string]string // key -> name
-	botNameSet           map[string]bool   // valid bot names for multi-bot mode
+	keyMap               map[string]ResolvedKey // key value -> the key itself (name + chat scope)
+	botNameSet           map[string]bool        // valid bot names for multi-bot mode
 	apm                  apm.Provider
 	errTracker           errtrack.Tracker
 	botEntries           []config.BotEntry  // for GET /bot/list
@@ -246,7 +262,7 @@ func New(cfg Config, sendFn SendFunc, chatResolver ChatResolver, opts ...Option)
 		cfg:            cfg,
 		send:           sendFn,
 		chats:          chatResolver,
-		keyMap:         make(map[string]string, len(cfg.Keys)),
+		keyMap:         make(map[string]ResolvedKey, len(cfg.Keys)),
 		botNameSet:     make(map[string]bool, len(cfg.BotNames)),
 		callbackCtx:    cbCtx,
 		callbackCancel: cbCancel,
@@ -256,7 +272,12 @@ func New(cfg Config, sendFn SendFunc, chatResolver ChatResolver, opts ...Option)
 		s.tlsReloader = newCertReloader(cfg.TLS.CertFile, cfg.TLS.KeyFile, cfg.TLS.ReloadInterval)
 	}
 	for _, k := range cfg.Keys {
-		s.keyMap[k.Key] = k.Name
+		scope := make([]string, len(k.Chats))
+		for i, c := range k.Chats {
+			scope[i] = strings.ToLower(c)
+		}
+		k.Chats = scope
+		s.keyMap[k.Key] = k
 	}
 	for _, name := range cfg.BotNames {
 		s.botNameSet[name] = true

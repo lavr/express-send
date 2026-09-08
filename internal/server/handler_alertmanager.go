@@ -98,6 +98,10 @@ func (s *Server) handleAlertmanager(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !s.authorizeTargets(w, r, targets, true) {
+		return
+	}
+
 	start := time.Now()
 	results, errs := s.fanoutSend(r.Context(), targets, r.URL.Query().Get("bot"), message, status)
 	elapsed := time.Since(start)
@@ -108,7 +112,7 @@ func (s *Server) handleAlertmanager(w http.ResponseWriter, r *http.Request) {
 	} else {
 		vlog.V1("alertmanager: sent %s to %d/%d chats [key: %s] (%dms)", webhook.Status, len(results), len(targets), keyName, elapsed.Milliseconds())
 	}
-	writeMultiSend(w, results, errs, http.StatusOK)
+	writeMultiSend(w, results, s.sanitizeErrors(r.Context(), errs), http.StatusOK)
 }
 
 // singleChat returns the fallback delivery chat for alertmanager, following the
